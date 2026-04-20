@@ -1,0 +1,47 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: radial-gradient(ellipse at top, #1e293b 0%, #0b1220 70%, #020617 100%);
+  color: #e2e8f0;
+  font-family: 'STKaiti', 'KaiTi', 'Songti SC', serif;
+  overflow-x: hidden;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+.bg-scroll {
+  background-image:
+    radial-gradient(circle at 20% 10%, rgba(212, 175, 55, 0.08), transparent 40%),
+    radial-gradient(circle at 80% 90%, rgba(220, 38, 38, 0.08), transparent 45%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.015) 0 2px, transparent 2px 14px);
+}
+
+.text-gold-grad {
+  background: linear-gradient(180deg, #ffe9a8 0%, #d4af37 50%, #a17f22 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(212, 175, 55, 0.35);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
