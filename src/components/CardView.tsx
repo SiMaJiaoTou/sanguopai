@@ -9,9 +9,20 @@ interface Props {
   onRedraw?: (id: string) => void;
   compact?: boolean;
   highlight?: boolean;
+  /** 显式尺寸（px）—— 传入后使用自适应尺寸，忽略 compact */
+  width?: number;
+  height?: number;
 }
 
-export function CardView({ card, canRedraw, onRedraw, compact, highlight }: Props) {
+export function CardView({
+  card,
+  canRedraw,
+  onRedraw,
+  compact,
+  highlight,
+  width,
+  height,
+}: Props) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: card.id,
     data: { card },
@@ -19,12 +30,32 @@ export function CardView({ card, canRedraw, onRedraw, compact, highlight }: Prop
 
   const theme = FACTION_THEME[card.faction];
 
-  const style: React.CSSProperties = transform
-    ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${isDragging ? 1.05 : 1})`,
-        zIndex: isDragging ? 50 : 'auto',
-      }
-    : {};
+  // 最终尺寸：显式 width/height > compact > 默认
+  const w = width ?? (compact ? 72 : 96);
+  const h = height ?? (compact ? 104 : 136);
+
+  // 按卡片宽度缩放字号，保证小尺寸下仍清晰
+  const scale = w / 96;
+  const fs = {
+    faction: Math.max(9, Math.round(11 * scale)),
+    point: Math.max(12, Math.round(16 * scale)),
+    glyph: Math.max(11, Math.round(16 * scale)),
+    name: Math.max(11, Math.round(16 * scale)),
+    val: Math.max(9, Math.round(10 * scale)),
+    glyphSm: Math.max(9, Math.round(11 * scale)),
+  };
+
+  const style: React.CSSProperties = {
+    width: `${w}px`,
+    height: `${h}px`,
+    flex: '0 0 auto',
+    ...(transform
+      ? {
+          transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${isDragging ? 1.05 : 1})`,
+          zIndex: isDragging ? 50 : 'auto',
+        }
+      : {}),
+  };
 
   return (
     <motion.div
@@ -35,14 +66,13 @@ export function CardView({ card, canRedraw, onRedraw, compact, highlight }: Prop
       transition={{ type: 'spring', stiffness: 260, damping: 22 }}
       whileHover={!isDragging ? { y: -6, scale: 1.04 } : undefined}
       className={[
-        'relative select-none cursor-grab active:cursor-grabbing',
+        'relative select-none cursor-grab active:cursor-grabbing shrink-0',
         'rounded-xl ring-2',
         theme.bg,
         theme.ring,
         'shadow-card',
         isDragging ? 'opacity-80 shadow-glow' : '',
         highlight ? 'animate-shine' : '',
-        compact ? 'w-[72px] h-[104px] shrink-0' : 'w-[96px] h-[136px] shrink-0',
         'p-2 flex flex-col justify-between',
         'border border-white/10',
         'backdrop-blur-sm',
@@ -53,23 +83,38 @@ export function CardView({ card, canRedraw, onRedraw, compact, highlight }: Prop
       {/* 顶部：阵营 + 点数 */}
       <div className={`flex items-start justify-between ${theme.accent}`}>
         <div className="flex flex-col leading-none">
-          <span className="text-[11px] font-bold tracking-widest">{card.faction}</span>
-          <span className="text-[16px] font-black">{card.pointLabel}</span>
+          <span
+            className="font-bold tracking-widest"
+            style={{ fontSize: fs.faction }}
+          >
+            {card.faction}
+          </span>
+          <span className="font-black" style={{ fontSize: fs.point }}>
+            {card.pointLabel}
+          </span>
         </div>
-        <span className="text-[16px] opacity-70">{theme.glyph}</span>
+        <span className="opacity-70" style={{ fontSize: fs.glyph }}>
+          {theme.glyph}
+        </span>
       </div>
 
       {/* 中央：武将名 */}
       <div className={`text-center ${theme.text} font-serif`}>
-        <div className={compact ? 'text-[13px]' : 'text-[16px]'} style={{ writingMode: 'horizontal-tb' }}>
+        <div
+          style={{ writingMode: 'horizontal-tb', fontSize: fs.name, lineHeight: 1.15 }}
+        >
           {card.name}
         </div>
       </div>
 
-      {/* 底部：数值 + 换牌按钮 */}
+      {/* 底部：数值 + 花色 */}
       <div className={`flex items-end justify-between ${theme.accent}`}>
-        <span className="text-[10px] opacity-80">值 {card.pointValue}</span>
-        <span className="text-[11px] opacity-70">{theme.glyph}</span>
+        <span className="opacity-80" style={{ fontSize: fs.val }}>
+          值 {card.pointValue}
+        </span>
+        <span className="opacity-70" style={{ fontSize: fs.glyphSm }}>
+          {theme.glyph}
+        </span>
       </div>
 
       {canRedraw && (

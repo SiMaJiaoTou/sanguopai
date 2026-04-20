@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Card, EvaluateResult } from '../types';
 import { TeamSlot } from './TeamSlot';
@@ -10,20 +11,48 @@ interface Props {
   onRedraw: (id: string) => void;
 }
 
+const SLOTS = 5;
+const GAP = 8;          // 槽间距 px
+const MIN_W = 60;       // 最小卡牌宽 px
+const MAX_W = 96;       // 最大卡牌宽 px（标准尺寸）
+const RATIO = 136 / 96; // 高 / 宽
+
 export function TeamPanel({ teamIndex, cards, evalResult, canRedraw, onRedraw }: Props) {
   const full = cards.every((c) => c !== null);
   const highlight = !!evalResult && evalResult.handType.multiplier >= 15;
+
+  // 动态测量容器宽度
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const [cardW, setCardW] = useState(MAX_W);
+
+  useEffect(() => {
+    const el = rowRef.current;
+    if (!el) return;
+    const recompute = () => {
+      const avail = el.clientWidth;
+      if (avail <= 0) return;
+      const raw = (avail - GAP * (SLOTS - 1)) / SLOTS;
+      const clamped = Math.max(MIN_W, Math.min(MAX_W, Math.floor(raw)));
+      setCardW(clamped);
+    };
+    recompute();
+    const ro = new ResizeObserver(recompute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const cardH = Math.round(cardW * RATIO);
 
   return (
     <motion.div
       layout
       className={[
-        'rounded-2xl p-4 bg-black/40 border overflow-x-auto',
+        'rounded-2xl p-4 bg-black/40 border min-w-0',
         highlight ? 'border-gold shadow-glow' : 'border-white/10',
       ].join(' ')}
     >
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="text-gold font-bold text-lg">第 {teamIndex + 1} 军</div>
           {full && evalResult ? (
             <div className="flex items-center gap-2">
@@ -70,7 +99,11 @@ export function TeamPanel({ teamIndex, cards, evalResult, canRedraw, onRedraw }:
         </div>
       </div>
 
-      <div className="flex gap-2 justify-center flex-nowrap py-1">
+      <div
+        ref={rowRef}
+        className="flex justify-center flex-nowrap w-full"
+        style={{ gap: `${GAP}px` }}
+      >
         {cards.map((c, si) => (
           <TeamSlot
             key={si}
@@ -79,6 +112,8 @@ export function TeamPanel({ teamIndex, cards, evalResult, canRedraw, onRedraw }:
             card={c}
             canRedraw={canRedraw}
             onRedraw={onRedraw}
+            width={cardW}
+            height={cardH}
           />
         ))}
       </div>
