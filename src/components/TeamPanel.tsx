@@ -18,7 +18,7 @@ export function TeamPanel({ teamIndex, cards, evalResult, canRedraw, onRedraw }:
     <motion.div
       layout
       className={[
-        'rounded-2xl p-4 bg-black/40 border',
+        'rounded-2xl p-4 bg-black/40 border overflow-x-auto',
         highlight ? 'border-gold shadow-glow' : 'border-white/10',
       ].join(' ')}
     >
@@ -70,7 +70,7 @@ export function TeamPanel({ teamIndex, cards, evalResult, canRedraw, onRedraw }:
         </div>
       </div>
 
-      <div className="flex gap-3 justify-center">
+      <div className="flex gap-2 justify-center flex-nowrap py-1">
         {cards.map((c, si) => (
           <TeamSlot
             key={si}

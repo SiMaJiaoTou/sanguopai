@@ -155,7 +155,7 @@ export default function App() {
             {/* 战场 */}
             <div
               className={`grid gap-6 ${
-                teamsRequired >= 2 ? 'grid-cols-1 xl:grid-cols-2' : 'grid-cols-1'
+                teamsRequired >= 2 ? 'grid-cols-1 2xl:grid-cols-2' : 'grid-cols-1'
               }`}
             >
               <TeamPanel

@@ -42,7 +42,7 @@ export function CardView({ card, canRedraw, onRedraw, compact, highlight }: Prop
         'shadow-card',
         isDragging ? 'opacity-80 shadow-glow' : '',
         highlight ? 'animate-shine' : '',
-        compact ? 'w-[72px] h-[104px]' : 'w-[96px] h-[136px]',
+        compact ? 'w-[72px] h-[104px] shrink-0' : 'w-[96px] h-[136px] shrink-0',
         'p-2 flex flex-col justify-between',
         'border border-white/10',
         'backdrop-blur-sm',

@@ -20,7 +20,7 @@ export function TeamSlot({ teamIndex, slotIndex, card, canRedraw, onRedraw }: Sl
     <div
       ref={setNodeRef}
       className={[
-        'w-[96px] h-[136px] rounded-xl flex items-center justify-center',
+        'w-[96px] h-[136px] shrink-0 rounded-xl flex items-center justify-center',
         'border-2 border-dashed',
         isOver ? 'border-gold bg-gold/10' : 'border-white/20 bg-white/5',
         'transition-colors',
