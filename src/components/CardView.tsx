@@ -47,8 +47,9 @@ export function CardView({
   // 按卡片宽度缩放字号
   const scale = w / 96;
   const fs = {
-    faction: Math.max(18, Math.round(28 * scale)), // 阵营字放大
-    value: Math.max(28, Math.round(44 * scale)),   // 战斗力超大
+    faction: Math.max(14, Math.round(22 * scale)), // 阵营字（稍小）
+    name: Math.max(11, Math.round(15 * scale)),    // 武将名
+    value: Math.max(24, Math.round(38 * scale)),   // 战斗力（主视觉）
   };
 
   const style: React.CSSProperties = {
@@ -97,7 +98,7 @@ export function CardView({
         style={{
           fontSize: fs.faction,
           lineHeight: 1,
-          marginBottom: Math.round(6 * scale),
+          marginBottom: Math.round(4 * scale),
           textShadow: `
             -1px -1px 0 rgba(0,0,0,0.8),
             1px -1px 0 rgba(0,0,0,0.8),
@@ -115,20 +116,21 @@ export function CardView({
       <div
         className="relative z-10"
         style={{
-          width: '60%',
+          width: '70%',
           height: 1,
           background:
-            'linear-gradient(90deg, transparent 0%, rgba(212,175,55,0.7) 50%, transparent 100%)',
+            'linear-gradient(90deg, transparent 0%, rgba(212,175,55,0.8) 50%, transparent 100%)',
           marginBottom: Math.round(4 * scale),
         }}
       />
 
-      {/* 战斗力数字（下，超大） */}
+      {/* 战斗力数字（中央主视觉） */}
       <div
         className={`relative z-10 font-kai font-black tabular-nums ${theme.text}`}
         style={{
           fontSize: fs.value,
           lineHeight: 1,
+          marginBottom: Math.round(4 * scale),
           textShadow: `
             -1.5px -1.5px 0 rgba(0,0,0,0.9),
             1.5px -1.5px 0 rgba(0,0,0,0.9),
@@ -140,6 +142,30 @@ export function CardView({
         }}
       >
         {card.pointValue}
+      </div>
+
+      {/* 武将名字条（底部） */}
+      <div
+        className="relative z-10 font-kai font-black text-center"
+        style={{
+          width: '90%',
+          fontSize: fs.name,
+          lineHeight: 1.1,
+          color: '#fde68a',
+          padding: `${Math.round(2 * scale)}px ${Math.round(4 * scale)}px`,
+          background:
+            'linear-gradient(180deg, rgba(26,15,8,0.85) 0%, rgba(60,30,8,0.85) 100%)',
+          borderTop: '1px solid rgba(212,175,55,0.6)',
+          borderBottom: '1px solid rgba(212,175,55,0.6)',
+          borderRadius: '2px',
+          textShadow: '0 1px 2px rgba(0,0,0,0.9), 0 0 4px rgba(212,175,55,0.3)',
+          letterSpacing: '0.05em',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      >
+        {card.name}
       </div>
 
       {canRedraw && (
