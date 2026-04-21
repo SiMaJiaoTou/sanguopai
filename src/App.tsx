@@ -4,7 +4,8 @@ import {
   DragEndEvent,
   DragOverlay,
   DragStartEvent,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
 } from '@dnd-kit/core';
@@ -78,14 +79,33 @@ export default function App() {
   }, [state.teams, teamsRequired]);
 
   // 拖拽感应器
+  //  - 桌面端：鼠标移动 5px 即激活，响应灵敏
+  //  - 移动端：需长按 220ms 以上才进入拖拽模式；在此期间的短滑动视为滚动页面
+  //    同时允许手指轻微抖动 (tolerance=8px) 不打断判定
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 220, tolerance: 8 },
+    }),
   );
 
-  const onDragStart = (e: DragStartEvent) => setActiveId(String(e.active.id));
+  const onDragStart = (e: DragStartEvent) => {
+    setActiveId(String(e.active.id));
+    // 拖拽过程中锁定 body 滚动，防止页面抖动
+    if (typeof document !== 'undefined') {
+      document.body.classList.add('dnd-dragging');
+    }
+    // 移动端触觉反馈：拖拽激活时轻微震动
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate?.(12);
+    }
+  };
 
   const onDragEnd = (e: DragEndEvent) => {
     setActiveId(null);
+    if (typeof document !== 'undefined') {
+      document.body.classList.remove('dnd-dragging');
+    }
     const { active, over } = e;
     if (!over) return;
     const fromId = String(active.id);
@@ -148,10 +168,25 @@ export default function App() {
         totalPower={totalPower}
       />
 
-      <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-        <div className="max-w-[1400px] mx-auto p-6 grid grid-cols-12 gap-6">
+      <DndContext
+        sensors={sensors}
+        onDragStart={onDragStart}
+        onDragEnd={onDragEnd}
+        onDragCancel={() => {
+          setActiveId(null);
+          if (typeof document !== 'undefined') {
+            document.body.classList.remove('dnd-dragging');
+          }
+        }}
+      >
+        <div className="max-w-[1400px] mx-auto p-3 sm:p-6 grid grid-cols-12 gap-4 sm:gap-6">
+          {/* 移动端：换将令置顶方便操作 */}
+          <div className="col-span-12 lg:hidden">
+            <RedrawZone redrawsLeft={state.redrawsLeft} compact />
+          </div>
+
           {/* 左主栏：战场 + 操作 + 手牌 */}
-          <div className="col-span-12 lg:col-span-8 space-y-6">
+          <div className="col-span-12 lg:col-span-8 space-y-4 sm:space-y-6">
             {/* 战场 */}
             <div
               className={`grid gap-4 ${
@@ -177,9 +212,9 @@ export default function App() {
             </div>
 
             {/* 操作区 */}
-            <div className="flex items-center justify-between gap-4 flex-wrap">
-              <div className="flex items-center gap-3 text-xs text-white/50 flex-wrap">
-                <span>牌库剩余 {state.deck.length} 张</span>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2 text-xs text-white/50 flex-wrap">
+                <span>牌库 {state.deck.length}</span>
                 {(['魏', '蜀', '吴', '群'] as const).map((f) => (
                   <span
                     key={f}
@@ -190,10 +225,10 @@ export default function App() {
                 ))}
               </div>
 
-              <div className="flex items-center gap-3 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap ml-auto">
                 <button
                   onClick={state.autoPlace}
-                  className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 text-white text-sm border border-white/15"
+                  className="px-3 py-2 rounded-lg bg-white/10 active:bg-white/25 hover:bg-white/20 text-white text-sm border border-white/15 touch-manipulation"
                   title="将手牌自动填入空槽"
                 >
                   一键布阵
@@ -201,22 +236,22 @@ export default function App() {
 
                 <button
                   onClick={handleRestart}
-                  className="px-4 py-2 rounded-lg bg-white/5 hover:bg-white/10 text-white text-sm border border-white/15"
+                  className="px-3 py-2 rounded-lg bg-white/5 active:bg-white/20 hover:bg-white/10 text-white text-sm border border-white/15 touch-manipulation"
                 >
-                  重开新局
+                  重开
                 </button>
 
                 <button
                   onClick={handleNext}
                   disabled={!requiredTeamsFull || state.isFinished}
                   className={[
-                    'px-6 py-3 rounded-xl font-bold text-base shadow-md',
+                    'px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold text-sm sm:text-base shadow-md touch-manipulation',
                     requiredTeamsFull && !state.isFinished
-                      ? 'bg-gold text-ink hover:bg-gold-light animate-shine'
+                      ? 'bg-gold text-ink active:bg-gold-dark hover:bg-gold-light animate-shine'
                       : 'bg-white/10 text-white/40 cursor-not-allowed',
                   ].join(' ')}
                 >
-                  {state.round >= FINAL_ROUND ? '⚔ 终局结算' : '⚔ 结束休战，进入下一年'}
+                  {state.round >= FINAL_ROUND ? '⚔ 终局结算' : '⚔ 下一年'}
                 </button>
               </div>
             </div>
@@ -232,9 +267,11 @@ export default function App() {
             </div>
           </div>
 
-          {/* 右侧栏：换牌区 + 倍率表 + 折线图 */}
+          {/* 右侧栏：换牌区(桌面端) + 倍率表 + 折线图 */}
           <div className="col-span-12 lg:col-span-4 space-y-4">
-            <RedrawZone redrawsLeft={state.redrawsLeft} />
+            <div className="hidden lg:block">
+              <RedrawZone redrawsLeft={state.redrawsLeft} />
+            </div>
             <HandTypeTable activeKeys={activeHandKeys} />
             <PowerChart
               history={state.powerHistory}

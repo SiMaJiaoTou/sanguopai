@@ -66,7 +66,7 @@ export function CardView({
       transition={{ type: 'spring', stiffness: 260, damping: 22 }}
       whileHover={!isDragging ? { y: -6, scale: 1.04 } : undefined}
       className={[
-        'relative select-none cursor-grab active:cursor-grabbing shrink-0',
+        'relative select-none cursor-grab active:cursor-grabbing shrink-0 touch-none',
         'rounded-xl ring-2',
         theme.bg,
         theme.ring,

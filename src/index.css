@@ -12,10 +12,28 @@ body,
   color: #e2e8f0;
   font-family: 'STKaiti', 'KaiTi', 'Songti SC', serif;
   overflow-x: hidden;
+  /* 移动端：纵向滚动顺畅，阻止双指缩放/双击缩放 */
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
 }
 
 * {
   box-sizing: border-box;
+}
+
+/* 拖拽过程中锁定视口滚动，避免页面在拖卡时抖动 */
+body.dnd-dragging {
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* 所有按钮 / 可交互元素：移除 iOS 300ms 点击延迟与高亮 */
+button,
+[role='button'] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .bg-scroll {
