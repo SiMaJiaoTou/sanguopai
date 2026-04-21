@@ -15,232 +15,282 @@ interface Props {
   onRedraw: (id: string) => void;
 }
 
-/** 阵营配色（更明快，参考古地图战棋） */
+/** 阵营配色（旗帜色为主） */
 const FACTION_MAT: Record<
   Faction,
   {
     flag: string;       // 旗面主色
+    flagLight: string;
     flagDark: string;
-    pole: string;       // 旗杆色
-    badge: string;      // 武将徽章底色
+    trim: string;       // 旗面金边
+    badge: string;      // 武将徽章底
     badgeAccent: string;
-    label: string;      // 盾牌横幅
+    pole: string;       // 旗杆
   }
 > = {
   魏: {
-    flag: '#1e40af',
+    flag: '#1e3a8a',
+    flagLight: '#3b82f6',
     flagDark: '#0a1f4d',
-    pole: '#8b6914',
+    trim: '#d4af37',
     badge: '#1e3a5f',
     badgeAccent: '#3b82f6',
-    label: '#1e3a5f',
+    pole: '#8b6914',
   },
   蜀: {
-    flag: '#dc2626',
-    flagDark: '#7f1d1d',
-    pole: '#8b6914',
+    flag: '#b91c1c',
+    flagLight: '#ef4444',
+    flagDark: '#5a0f0f',
+    trim: '#fbbf24',
     badge: '#7a1f1f',
-    badgeAccent: '#ef4444',
-    label: '#7a1f1f',
+    badgeAccent: '#fca5a5',
+    pole: '#8b6914',
   },
   吴: {
-    flag: '#059669',
-    flagDark: '#064e3b',
-    pole: '#8b6914',
+    flag: '#047857',
+    flagLight: '#10b981',
+    flagDark: '#022c22',
+    trim: '#fbbf24',
     badge: '#0f3826',
-    badgeAccent: '#10b981',
-    label: '#0f3826',
+    badgeAccent: '#6ee7b7',
+    pole: '#8b6914',
   },
   群: {
-    flag: '#b45309',
-    flagDark: '#78350f',
-    pole: '#8b6914',
+    flag: '#92400e',
+    flagLight: '#d97706',
+    flagDark: '#3a1a05',
+    trim: '#fbbf24',
     badge: '#3d3a2a',
-    badgeAccent: '#fbbf24',
-    label: '#3d3a2a',
+    badgeAccent: '#fcd34d',
+    pole: '#8b6914',
   },
 };
 
-const SLOTS = 5;
-// 槽位宽 2.4，高 1.6（梯形近大远小），间距 0.3
-const SLOT_W = 2.4;
-const SLOT_H = 1.6;
-const SLOT_GAP = 0.35;
+// 5 槽位布局：参考图的 2×3 形式（后排 2 + 前排 3）
+// 世界坐标：Z 向屏幕里 = 负，越大越远
+const SLOT_LAYOUT: { x: number; z: number }[] = [
+  { x: -1.4, z: -0.9 }, // 0 后排左
+  { x: 1.4, z: -0.9 },  // 1 后排右
+  { x: -2.2, z: 0.9 },  // 2 前排左
+  { x: 0, z: 0.9 },     // 3 前排中
+  { x: 2.2, z: 0.9 },   // 4 前排右
+];
+
+// 牌位尺寸
+const TILE_W = 1.8;
+const TILE_H = 1.3;
 
 // ======================================================================
-// 单面旗子 —— 简化小兵（一根旗杆 + 旗面）
+// 单面大旗（= 一个武将）
 // ======================================================================
 
-function SingleFlag({
+function WarFlag({
   faction,
-  position,
-  scale,
-  seedIdx,
+  seed,
+  highlight,
 }: {
   faction: Faction;
-  position: [number, number, number];
-  scale: number;
-  seedIdx: number;
+  seed: number;
+  highlight: boolean;
 }) {
   const m = FACTION_MAT[faction];
   const flagRef = useRef<THREE.Mesh>(null);
+  const groupRef = useRef<THREE.Group>(null);
+  const glyphRef = useRef<THREE.Group>(null);
 
   useFrame((state) => {
+    const t = state.clock.getElapsedTime();
     if (flagRef.current) {
-      const t = state.clock.getElapsedTime();
-      flagRef.current.rotation.y = Math.sin(t * 1.5 + seedIdx) * 0.25;
-      flagRef.current.rotation.z = Math.sin(t * 2.2 + seedIdx * 0.7) * 0.08;
+      // 旗帜飘动（波浪变形需要 shader，这里用旋转模拟）
+      flagRef.current.rotation.y = Math.sin(t * 1.5 + seed) * 0.35;
+      flagRef.current.rotation.z = Math.sin(t * 2.2 + seed * 0.7) * 0.08;
+    }
+    if (glyphRef.current) {
+      // 旗字跟随旗面旋转
+      glyphRef.current.rotation.y = Math.sin(t * 1.5 + seed) * 0.35;
+    }
+    if (groupRef.current && highlight) {
+      groupRef.current.position.y = Math.sin(t * 2) * 0.03;
     }
   });
 
-  const poleH = 0.7 * scale;
-  const flagW = 0.35 * scale;
-  const flagH = 0.22 * scale;
+  const poleH = 1.9;
+  const flagW = 0.95;
+  const flagH = 0.6;
 
   return (
-    <group position={position} scale={scale}>
-      {/* 旗杆 */}
-      <Cylinder args={[0.015, 0.015, poleH, 6]} position={[0, poleH / 2, 0]}>
-        <meshStandardMaterial color={m.pole} roughness={0.7} />
+    <group ref={groupRef}>
+      {/* 旗座 */}
+      <Cylinder args={[0.12, 0.15, 0.1, 12]} position={[0, 0.05, 0]}>
+        <meshStandardMaterial color="#3a2418" roughness={0.8} />
       </Cylinder>
-      {/* 旗杆顶饰 */}
-      <mesh position={[0, poleH + 0.02, 0]}>
-        <sphereGeometry args={[0.02, 6, 6]} />
-        <meshStandardMaterial color="#d4af37" metalness={0.9} roughness={0.2} />
-      </mesh>
-      {/* 旗面 */}
-      <mesh
-        ref={flagRef}
-        position={[flagW / 2 + 0.015, poleH - flagH / 2 - 0.05, 0]}
-      >
-        <planeGeometry args={[flagW, flagH, 4, 2]} />
+      <Cylinder args={[0.13, 0.13, 0.02, 12]} position={[0, 0.11, 0]}>
+        <meshStandardMaterial color={m.trim} metalness={0.9} roughness={0.25} />
+      </Cylinder>
+
+      {/* 旗杆 */}
+      <Cylinder args={[0.025, 0.025, poleH, 8]} position={[0, poleH / 2 + 0.1, 0]}>
+        <meshStandardMaterial color={m.pole} metalness={0.4} roughness={0.55} />
+      </Cylinder>
+
+      {/* 旗杆顶装饰（金枪尖） */}
+      <mesh position={[0, poleH + 0.15, 0]}>
+        <coneGeometry args={[0.05, 0.18, 8]} />
         <meshStandardMaterial
-          color={m.flag}
-          side={THREE.DoubleSide}
-          roughness={0.55}
-          emissive={m.flag}
-          emissiveIntensity={0.12}
+          color={m.trim}
+          metalness={0.95}
+          roughness={0.15}
+          emissive={m.trim}
+          emissiveIntensity={highlight ? 0.4 : 0.15}
         />
+      </mesh>
+
+      {/* 旗面（transform origin 在左边贴旗杆） */}
+      <group position={[0.025, poleH - flagH / 2, 0]}>
+        <mesh ref={flagRef} position={[flagW / 2, 0, 0]}>
+          <planeGeometry args={[flagW, flagH, 8, 4]} />
+          <meshStandardMaterial
+            color={m.flag}
+            side={THREE.DoubleSide}
+            roughness={0.55}
+            metalness={0.05}
+            emissive={m.flagDark}
+            emissiveIntensity={highlight ? 0.35 : 0.15}
+          />
+        </mesh>
+        {/* 旗面金边（正面 / 背面双层） */}
+        <mesh position={[flagW / 2, 0, 0.001]}>
+          <planeGeometry args={[flagW * 0.94, flagH * 0.9]} />
+          <meshBasicMaterial color={m.trim} transparent opacity={0.25} side={THREE.DoubleSide} />
+        </mesh>
+        {/* 阵营字 - 立体字 */}
+        <group ref={glyphRef} position={[flagW / 2, 0, 0.01]}>
+          <Text
+            fontSize={0.38}
+            color={m.trim}
+            anchorX="center"
+            anchorY="middle"
+            outlineColor={m.flagDark}
+            outlineWidth={0.02}
+            fontWeight="bold"
+          >
+            {faction}
+          </Text>
+          {/* 背面字（翻转） */}
+          <Text
+            position={[0, 0, -0.02]}
+            rotation={[0, Math.PI, 0]}
+            fontSize={0.38}
+            color={m.trim}
+            anchorX="center"
+            anchorY="middle"
+            outlineColor={m.flagDark}
+            outlineWidth={0.02}
+            fontWeight="bold"
+          >
+            {faction}
+          </Text>
+        </group>
+      </group>
+
+      {/* 旗下彩带装饰（飘在旗杆中部） */}
+      <mesh position={[0, poleH * 0.4, 0]} rotation={[0, 0, Math.PI / 16]}>
+        <planeGeometry args={[0.12, 0.3]} />
+        <meshStandardMaterial color={m.flagLight} side={THREE.DoubleSide} roughness={0.6} />
       </mesh>
     </group>
   );
 }
 
 // ======================================================================
-// 旗子群 —— 参考图的"兵马"（密集旗阵）
+// 武将圆徽章（左前角小立牌）
 // ======================================================================
 
-function ArmyFlags({ faction, bounds }: { faction: Faction; bounds: { w: number; h: number } }) {
-  // 在梯形区域内随机排布 7~10 面旗子
-  const flags = useMemo(() => {
-    const list: { x: number; z: number; scale: number; seed: number }[] = [];
-    const count = 9;
-    // 3 排 × 3 列的近梯形分布
-    for (let r = 0; r < 3; r++) {
-      const rowProgress = r / 2; // 0 远 → 1 近
-      const rowW = bounds.w * (0.55 + rowProgress * 0.3); // 远窄近宽
-      const rowZ = bounds.h * (0.3 - rowProgress * 0.55);
-      const perRow = r === 0 ? 2 : r === 1 ? 3 : 4;
-      for (let c = 0; c < perRow; c++) {
-        const colProgress = (perRow as number) === 1 ? 0.5 : c / (perRow - 1);
-        const x = -rowW / 2 + rowW * colProgress;
-        list.push({
-          x: x + (Math.random() - 0.5) * 0.06,
-          z: rowZ + (Math.random() - 0.5) * 0.06,
-          scale: 0.85 + rowProgress * 0.3,
-          seed: list.length * 1.7,
-        });
-      }
-    }
-    return list.slice(0, count);
-  }, [bounds.w, bounds.h]);
-
-  return (
-    <group>
-      {flags.map((f, i) => (
-        <SingleFlag
-          key={i}
-          faction={faction}
-          position={[f.x, 0.02, f.z]}
-          scale={f.scale}
-          seedIdx={f.seed}
-        />
-      ))}
-    </group>
-  );
-}
-
-// ======================================================================
-// 武将徽章 —— 圆形 3D 头像标牌（左前角）
-// ======================================================================
-
-function CommanderMark({
-  faction,
-  position,
-}: {
-  faction: Faction;
-  position: [number, number, number];
-}) {
+function CommanderMark({ faction, name }: { faction: Faction; name: string }) {
   const m = FACTION_MAT[faction];
 
   return (
-    <group position={position} rotation={[-Math.PI / 2.2, 0, 0]}>
-      {/* 圆形头像底盘 */}
-      <mesh position={[0, 0, 0]}>
-        <cylinderGeometry args={[0.28, 0.28, 0.04, 24]} />
-        <meshStandardMaterial color="#d4af37" metalness={0.85} roughness={0.25} />
+    <group>
+      {/* 圆章底盘（平躺在地） */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.01, 0]}>
+        <circleGeometry args={[0.32, 32]} />
+        <meshStandardMaterial color={m.trim} metalness={0.9} roughness={0.25} />
       </mesh>
-      {/* 内圈阵营色 */}
-      <mesh position={[0, 0.03, 0]}>
-        <cylinderGeometry args={[0.24, 0.24, 0.02, 24]} />
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.02, 0]}>
+        <circleGeometry args={[0.28, 32]} />
         <meshStandardMaterial color={m.badge} roughness={0.5} />
       </mesh>
 
-      {/* 简化人像（正面对相机，z 轴朝外） */}
-      <group position={[0, 0.06, 0]} rotation={[Math.PI / 2.2, 0, 0]}>
-        {/* 帽子 */}
-        <mesh position={[0, 0.08, 0]}>
-          <coneGeometry args={[0.12, 0.1, 8]} />
-          <meshStandardMaterial color={m.flagDark} roughness={0.6} />
+      {/* 武将立体头像（立起来的竖牌） */}
+      <group position={[0, 0.02, -0.05]} rotation={[-Math.PI / 5, 0, 0]}>
+        {/* 竖牌底板 */}
+        <mesh>
+          <planeGeometry args={[0.45, 0.55]} />
+          <meshStandardMaterial color={m.badge} roughness={0.6} side={THREE.DoubleSide} />
         </mesh>
-        {/* 头 */}
-        <mesh position={[0, -0.02, 0]}>
-          <sphereGeometry args={[0.09, 12, 12]} />
-          <meshStandardMaterial color="#d4a574" roughness={0.6} />
+        {/* 金边 */}
+        <mesh position={[0, 0, 0.001]}>
+          <planeGeometry args={[0.47, 0.57]} />
+          <meshBasicMaterial color={m.trim} transparent opacity={0.5} />
+        </mesh>
+        {/* 简化人像 */}
+        <mesh position={[0, 0.08, 0.002]}>
+          <circleGeometry args={[0.12, 20]} />
+          <meshBasicMaterial color="#d4a574" />
+        </mesh>
+        {/* 帽子 */}
+        <mesh position={[0, 0.2, 0.003]}>
+          <planeGeometry args={[0.26, 0.08]} />
+          <meshBasicMaterial color={m.flagDark} />
         </mesh>
         {/* 肩 */}
-        <mesh position={[0, -0.16, 0]}>
-          <coneGeometry args={[0.15, 0.14, 8]} />
-          <meshStandardMaterial color={m.flag} roughness={0.5} />
+        <mesh position={[0, -0.08, 0.002]}>
+          <planeGeometry args={[0.28, 0.18]} />
+          <meshBasicMaterial color={m.flag} />
         </mesh>
+
+        {/* 名字条 */}
+        <mesh position={[0, -0.24, 0.002]}>
+          <planeGeometry args={[0.42, 0.1]} />
+          <meshBasicMaterial color={m.flagDark} />
+        </mesh>
+        <Text
+          position={[0, -0.24, 0.006]}
+          fontSize={0.07}
+          color="#fef3c7"
+          anchorX="center"
+          anchorY="middle"
+          fontWeight="bold"
+        >
+          {name.length > 3 ? name.slice(0, 3) : name}
+        </Text>
       </group>
     </group>
   );
 }
 
 // ======================================================================
-// 梯形牌位
+// 梯形牌位（平躺在地面上）
 // ======================================================================
 
 function SlotTile({
-  x,
-  z,
+  slotIndex,
+  position,
   empty,
   isOver,
   highlight,
 }: {
-  x: number;
-  z: number;
+  slotIndex: number;
+  position: { x: number; z: number };
   empty: boolean;
   isOver: boolean;
   highlight: boolean;
 }) {
-  // 梯形几何：近大远小
   const shape = useMemo(() => {
     const s = new THREE.Shape();
-    const nearW = SLOT_W * 0.5;
-    const farW = SLOT_W * 0.38;
-    const halfH = SLOT_H / 2;
+    const nearW = TILE_W / 2;
+    const farW = TILE_W / 2 * 0.8;
+    const halfH = TILE_H / 2;
     s.moveTo(-nearW, halfH);
     s.lineTo(nearW, halfH);
     s.lineTo(farW, -halfH);
@@ -249,40 +299,41 @@ function SlotTile({
     return s;
   }, []);
 
-  const borderColor = isOver ? '#fde68a' : highlight ? '#d4af37' : '#8b6914';
+  const borderColor = isOver ? '#fef3c7' : highlight ? '#fbbf24' : '#8b6914';
 
   return (
-    <group position={[x, 0.001, z]} rotation={[-Math.PI / 2, 0, 0]}>
-      {/* 牌位内部（半透明米黄） */}
+    <group position={[position.x, 0.002, position.z]} rotation={[-Math.PI / 2, 0, 0]}>
+      {/* 内部透明底 */}
       <mesh>
         <shapeGeometry args={[shape]} />
         <meshStandardMaterial
-          color={isOver ? '#fde68a' : '#e8dcc0'}
+          color={isOver ? '#fef3c7' : empty ? '#c9b995' : '#e8dcc0'}
           transparent
-          opacity={isOver ? 0.35 : empty ? 0.15 : 0.22}
-          roughness={0.9}
+          opacity={isOver ? 0.35 : empty ? 0.1 : 0.18}
+          roughness={0.95}
         />
       </mesh>
-      {/* 金色描边（用 lineSegments） */}
+      {/* 金色描边 */}
       <lineSegments>
         <edgesGeometry args={[new THREE.ShapeGeometry(shape)]} />
-        <lineBasicMaterial color={borderColor} linewidth={2} transparent opacity={0.9} />
+        <lineBasicMaterial color={borderColor} />
       </lineSegments>
-      {/* 内层金边 */}
-      <lineSegments position={[0, 0, 0.002]} scale={[0.94, 0.88, 1]}>
+      {/* 内层细边 */}
+      <lineSegments scale={[0.92, 0.88, 1]} position={[0, 0, 0.001]}>
         <edgesGeometry args={[new THREE.ShapeGeometry(shape)]} />
-        <lineBasicMaterial color={borderColor} linewidth={1} transparent opacity={0.5} />
+        <lineBasicMaterial color={borderColor} transparent opacity={0.5} />
       </lineSegments>
+
       {empty && (
         <Text
-          position={[0, 0, 0.003]}
-          fontSize={0.16}
-          color={isOver ? '#fde68a' : '#8b6914'}
+          position={[0, 0, 0.005]}
+          fontSize={0.14}
+          color={isOver ? '#fef3c7' : '#8b6914'}
           anchorX="center"
           anchorY="middle"
           fontStyle="italic"
         >
-          {isOver ? `降 · ${Math.floor(Math.random() * 5) + 1}` : '空位'}
+          {isOver ? `降 · ${slotIndex + 1}` : `空位 · ${slotIndex + 1}`}
         </Text>
       )}
     </group>
@@ -290,80 +341,112 @@ function SlotTile({
 }
 
 // ======================================================================
-// 水墨地图底
+// 水墨地图地面
 // ======================================================================
 
 function MapGround() {
-  // 用一张过程生成的 canvas 贴图做水墨地图
   const texture = useMemo(() => {
     const c = document.createElement('canvas');
-    c.width = 512;
-    c.height = 512;
+    c.width = 1024;
+    c.height = 640;
     const ctx = c.getContext('2d')!;
-    // 羊皮纸底色
-    const grad = ctx.createRadialGradient(256, 256, 50, 256, 256, 400);
-    grad.addColorStop(0, '#e8dcc0');
-    grad.addColorStop(0.5, '#d4b483');
-    grad.addColorStop(1, '#a89670');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 512, 512);
 
-    // 水墨河流（浅灰曲线）
-    ctx.strokeStyle = 'rgba(80, 60, 40, 0.22)';
-    ctx.lineWidth = 3;
-    for (let i = 0; i < 5; i++) {
+    // 雪地米黄底
+    const grad = ctx.createRadialGradient(512, 320, 100, 512, 320, 700);
+    grad.addColorStop(0, '#f2e6cb');
+    grad.addColorStop(0.5, '#ddc89a');
+    grad.addColorStop(1, '#a89070');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 1024, 640);
+
+    // 水墨河流（柔和灰蓝）
+    ctx.strokeStyle = 'rgba(100, 110, 110, 0.28)';
+    ctx.lineWidth = 14;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 4; i++) {
       ctx.beginPath();
-      const y0 = 60 + i * 90;
-      ctx.moveTo(0, y0);
-      for (let x = 0; x <= 512; x += 40) {
-        const y = y0 + Math.sin(x * 0.015 + i) * 20;
+      const y0 = 100 + i * 150;
+      ctx.moveTo(-20, y0);
+      for (let x = 0; x <= 1040; x += 60) {
+        const y = y0 + Math.sin(x * 0.008 + i * 1.3) * 30;
+        ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+    // 河流深色描边
+    ctx.strokeStyle = 'rgba(80, 90, 100, 0.22)';
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      const y0 = 100 + i * 150;
+      ctx.moveTo(-20, y0);
+      for (let x = 0; x <= 1040; x += 60) {
+        const y = y0 + Math.sin(x * 0.008 + i * 1.3) * 30;
         ctx.lineTo(x, y);
       }
       ctx.stroke();
     }
 
-    // 远山轮廓（浅灰三角）
-    ctx.fillStyle = 'rgba(90, 70, 50, 0.18)';
-    for (let i = 0; i < 8; i++) {
-      const cx = i * 70 + 20;
-      const cy = 40 + (i % 3) * 10;
+    // 远山轮廓（雪山）
+    ctx.fillStyle = 'rgba(140, 140, 140, 0.35)';
+    for (let i = 0; i < 10; i++) {
+      const cx = i * 110 + 50;
+      const cy = 50 + (i % 4) * 12;
       ctx.beginPath();
-      ctx.moveTo(cx - 30, cy + 20);
-      ctx.lineTo(cx, cy);
-      ctx.lineTo(cx + 15, cy + 8);
-      ctx.lineTo(cx + 35, cy);
-      ctx.lineTo(cx + 55, cy + 20);
+      ctx.moveTo(cx - 60, cy + 40);
+      ctx.lineTo(cx - 20, cy);
+      ctx.lineTo(cx, cy + 15);
+      ctx.lineTo(cx + 30, cy - 5);
+      ctx.lineTo(cx + 60, cy + 20);
+      ctx.lineTo(cx + 90, cy + 40);
       ctx.closePath();
       ctx.fill();
     }
-    // 随机墨点
-    ctx.fillStyle = 'rgba(60, 40, 20, 0.15)';
-    for (let i = 0; i < 80; i++) {
-      const x = Math.random() * 512;
-      const y = Math.random() * 512;
+    // 雪山顶白雪
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+    for (let i = 0; i < 10; i++) {
+      const cx = i * 110 + 50;
+      const cy = 50 + (i % 4) * 12;
       ctx.beginPath();
-      ctx.arc(x, y, Math.random() * 3 + 0.5, 0, Math.PI * 2);
+      ctx.moveTo(cx - 20, cy);
+      ctx.lineTo(cx - 5, cy + 8);
+      ctx.lineTo(cx + 5, cy + 5);
+      ctx.lineTo(cx + 30, cy - 5);
+      ctx.lineTo(cx + 15, cy - 3);
+      ctx.closePath();
       ctx.fill();
     }
+
+    // 城郭（右上角，参考图有）
+    ctx.fillStyle = 'rgba(70, 60, 50, 0.4)';
+    ctx.fillRect(900, 40, 80, 40);
+    ctx.fillRect(920, 20, 40, 20);
+    ctx.fillRect(940, 60, 20, 30);
+
+    // 墨点散点
+    ctx.fillStyle = 'rgba(60, 50, 40, 0.18)';
+    for (let i = 0; i < 120; i++) {
+      const x = Math.random() * 1024;
+      const y = Math.random() * 640;
+      ctx.beginPath();
+      ctx.arc(x, y, Math.random() * 2 + 0.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     const tex = new THREE.CanvasTexture(c);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
     return tex;
   }, []);
 
   return (
     <Plane args={[20, 12]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
-      <meshStandardMaterial
-        map={texture}
-        roughness={0.95}
-        metalness={0}
-        color="#e8dcc0"
-      />
+      <meshStandardMaterial map={texture} roughness={0.98} />
     </Plane>
   );
 }
 
 // ======================================================================
-// 3D 场景主体
+// 3D 场景
 // ======================================================================
 
 function Scene({
@@ -378,88 +461,78 @@ function Scene({
   const { camera } = useThree();
 
   useEffect(() => {
-    camera.position.set(0, 4.5, 4);
-    camera.lookAt(0, 0, 0);
+    // 斜俯视（参考图视角）
+    camera.position.set(0, 5.5, 3.8);
+    camera.lookAt(0, 0, 0.2);
   }, [camera]);
-
-  // 5 槽位布局：2 行（上 2 下 3 或参考图的 1 行 5 列）
-  // 参考图是 2×3 格子。我们用 2 行：
-  //   上排 2 位（z = -0.9）
-  //   下排 3 位（z = +0.9）
-  // 但 PRD 要求 5 槽。用 1 行 5 列斜摆更贴近参考图的横向感
-  const xs = useMemo(() => {
-    return Array.from({ length: SLOTS }, (_, i) => {
-      const step = SLOT_W * 0.55 + SLOT_GAP;
-      return (i - (SLOTS - 1) / 2) * step;
-    });
-  }, []);
 
   return (
     <>
-      {/* 灯光 */}
-      <ambientLight intensity={0.85} color="#fff5e0" />
-      <directionalLight
-        position={[3, 6, 3]}
-        intensity={0.6}
-        color="#fff2cc"
-      />
-      <directionalLight position={[-3, 4, 2]} intensity={0.3} color="#e8dcc0" />
+      {/* 灯光（整体明亮） */}
+      <ambientLight intensity={1.0} color="#fff5e0" />
+      <directionalLight position={[4, 8, 4]} intensity={0.6} color="#fff2cc" castShadow />
+      <directionalLight position={[-3, 4, -2]} intensity={0.25} color="#e8dcc0" />
 
       {/* 水墨地图 */}
       <MapGround />
 
-      {/* 5 个槽位 */}
-      {xs.map((x, i) => (
+      {/* 5 个梯形槽位 */}
+      {SLOT_LAYOUT.map((pos, i) => (
         <SlotTile
           key={i}
-          x={x}
-          z={0}
+          slotIndex={i}
+          position={pos}
           empty={!cards[i]}
           isOver={hovered === i}
           highlight={highlight}
         />
       ))}
 
-      {/* 旗子兵阵 */}
+      {/* 旗子（武将）—— 立在格子中心 */}
       {cards.map((c, i) =>
         c ? (
-          <group key={c.id} position={[xs[i], 0, 0]}>
-            <ArmyFlags faction={c.faction} bounds={{ w: SLOT_W * 0.7, h: SLOT_H }} />
+          <group key={c.id} position={[SLOT_LAYOUT[i].x, 0, SLOT_LAYOUT[i].z - 0.1]}>
+            <WarFlag faction={c.faction} seed={i * 1.7} highlight={highlight} />
           </group>
         ) : null,
       )}
 
-      {/* 武将圆徽章（左前角） */}
+      {/* 武将徽章（左前角） */}
       {cards.map((c, i) =>
         c ? (
-          <CommanderMark
-            key={`c-${c.id}`}
-            faction={c.faction}
-            position={[xs[i] - SLOT_W * 0.28, 0.02, SLOT_H * 0.48]}
-          />
+          <group
+            key={`m-${c.id}`}
+            position={[SLOT_LAYOUT[i].x - TILE_W * 0.4, 0, SLOT_LAYOUT[i].z + TILE_H * 0.45]}
+          >
+            <CommanderMark faction={c.faction} name={c.name} />
+          </group>
         ) : null,
       )}
 
-      {/* 战力数字（悬浮在牌位上方） */}
+      {/* 战力数字（右前角） */}
       {cards.map((c, i) =>
         c ? (
-          <group key={`p-${c.id}`} position={[xs[i] + SLOT_W * 0.22, 0.02, SLOT_H * 0.48]} rotation={[-Math.PI / 2.2, 0, 0]}>
-            <mesh position={[0, 0, 0]}>
-              <planeGeometry args={[0.45, 0.22]} />
-              <meshStandardMaterial color="#1a0f08" />
+          <group
+            key={`p-${c.id}`}
+            position={[SLOT_LAYOUT[i].x + TILE_W * 0.35, 0.01, SLOT_LAYOUT[i].z + TILE_H * 0.5]}
+            rotation={[-Math.PI / 2.5, 0, 0]}
+          >
+            <mesh>
+              <planeGeometry args={[0.4, 0.2]} />
+              <meshStandardMaterial color="#1a0f08" roughness={0.7} />
             </mesh>
             <mesh position={[0, 0, 0.001]}>
-              <planeGeometry args={[0.47, 0.24]} />
+              <planeGeometry args={[0.42, 0.22]} />
               <meshBasicMaterial color="#d4af37" transparent opacity={0.35} />
             </mesh>
             <Text
-              position={[0, 0, 0.003]}
+              position={[0, 0, 0.005]}
               fontSize={0.13}
               color="#fde68a"
               anchorX="center"
               anchorY="middle"
               outlineColor="#000"
-              outlineWidth={0.006}
+              outlineWidth={0.005}
             >
               {c.pointValue}
             </Text>
@@ -471,7 +544,7 @@ function Scene({
 }
 
 // ======================================================================
-// 主组件（带交互叠层）
+// 主组件（Canvas + 交互叠层）
 // ======================================================================
 
 export function BattleField3D({
@@ -589,9 +662,7 @@ export function BattleField3D({
             <span className="text-amber-200/50 text-base">(</span>
             <span className="text-emerald-300 tabular-nums">{evalResult.rankType.score}</span>
             <span className="text-amber-200/50 text-base">+</span>
-            <span
-              className={['tabular-nums', evalResult.isFlush ? 'text-gold-grad' : 'text-amber-200/40'].join(' ')}
-            >
+            <span className={['tabular-nums', evalResult.isFlush ? 'text-gold-grad' : 'text-amber-200/40'].join(' ')}>
               {evalResult.suitBonus}
             </span>
             <span className="text-amber-200/50 text-base">)</span>
@@ -612,8 +683,8 @@ export function BattleField3D({
         </motion.div>
       )}
 
-      {/* 3D Canvas + HTML 交互叠层 */}
-      <div className="relative w-full" style={{ aspectRatio: '16 / 7', minHeight: 200 }}>
+      {/* Canvas + 交互层 */}
+      <div className="relative w-full" style={{ aspectRatio: '16 / 10', minHeight: 280 }}>
         <div className="absolute inset-0 rounded-md overflow-hidden">
           <Canvas
             dpr={[1, 2]}
@@ -626,8 +697,8 @@ export function BattleField3D({
           >
             <OrthographicCamera
               makeDefault
-              position={[0, 4.5, 4]}
-              zoom={90}
+              position={[0, 5.5, 3.8]}
+              zoom={100}
               near={0.1}
               far={100}
             />
@@ -635,49 +706,82 @@ export function BattleField3D({
           </Canvas>
         </div>
 
-        {/* HTML 拖拽叠层 */}
-        <div className="absolute inset-0 grid grid-cols-5 gap-0 pointer-events-none">
-          {cards.map((c, i) => (
-            <SlotInteractionLayer
-              key={i}
-              teamIndex={teamIndex}
-              slotIndex={i}
-              card={c}
-              onHoverChange={(h) => setHovered((prev) => (h ? i : prev === i ? null : prev))}
-            />
-          ))}
-        </div>
+        {/* 2×3 交互层：按参考图网格布局 */}
+        <SlotOverlayGrid
+          teamIndex={teamIndex}
+          cards={cards}
+          onHoverChange={setHovered}
+        />
       </div>
     </motion.div>
   );
 }
 
 // ======================================================================
-// 交互层（HTML 叠加）
+// 交互层（HTML 2x3 网格，映射到 3D 槽位）
 // ======================================================================
 
-function SlotInteractionLayer({
+function SlotOverlayGrid({
+  teamIndex,
+  cards,
+  onHoverChange,
+}: {
+  teamIndex: number;
+  cards: (Card | null)[];
+  onHoverChange: (idx: number | null) => void;
+}) {
+  // 管理 hover 状态：记录哪些格子被悬停，取最新一个
+  const handleHover = (hover: boolean, idx: number) => {
+    if (hover) onHoverChange(idx);
+    else onHoverChange(null);
+  };
+
+  return (
+    <div
+      className="absolute inset-0 grid gap-1 p-4 pointer-events-none"
+      style={{
+        gridTemplateColumns: 'repeat(4, 1fr)',
+        gridTemplateRows: '1fr 1fr',
+      }}
+    >
+      <SlotCell teamIndex={teamIndex} slotIndex={0} card={cards[0]} onHoverChange={handleHover} style={{ gridColumn: '1 / 3', gridRow: '1 / 2' }} />
+      <SlotCell teamIndex={teamIndex} slotIndex={1} card={cards[1]} onHoverChange={handleHover} style={{ gridColumn: '3 / 5', gridRow: '1 / 2' }} />
+      <SlotCell teamIndex={teamIndex} slotIndex={2} card={cards[2]} onHoverChange={handleHover} style={{ gridColumn: '1 / 2', gridRow: '2 / 3' }} />
+      <SlotCell teamIndex={teamIndex} slotIndex={3} card={cards[3]} onHoverChange={handleHover} style={{ gridColumn: '2 / 4', gridRow: '2 / 3' }} />
+      <SlotCell teamIndex={teamIndex} slotIndex={4} card={cards[4]} onHoverChange={handleHover} style={{ gridColumn: '4 / 5', gridRow: '2 / 3' }} />
+    </div>
+  );
+}
+
+function SlotCell({
   teamIndex,
   slotIndex,
   card,
   onHoverChange,
+  style,
 }: {
   teamIndex: number;
   slotIndex: number;
   card: Card | null;
-  onHoverChange: (hover: boolean) => void;
+  onHoverChange: (hover: boolean, idx: number) => void;
+  style?: React.CSSProperties;
 }) {
-  const { setNodeRef: setDropRef, isOver } = useDroppable({
+  const { setNodeRef, isOver } = useDroppable({
     id: `team-${teamIndex}-${slotIndex}`,
     data: { type: 'team', teamIndex, slotIndex },
   });
 
   useEffect(() => {
-    onHoverChange(isOver);
-  }, [isOver, onHoverChange]);
+    onHoverChange(isOver, slotIndex);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOver]);
 
   return (
-    <div ref={setDropRef} className="relative h-full pointer-events-auto">
+    <div
+      ref={setNodeRef}
+      className="relative pointer-events-auto"
+      style={style}
+    >
       {card && <DraggableOverlay card={card} />}
     </div>
   );
