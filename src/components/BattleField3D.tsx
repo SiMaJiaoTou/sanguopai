@@ -606,8 +606,10 @@ function Scene({
   const { camera } = useThree();
 
   useEffect(() => {
-    // 透视相机：斜俯视（参考图视角），拉远一点看全
-    camera.position.set(0, 7, 6.5);
+    // 透视相机 + 远距 + 小 FOV 模拟"正交感"：压缩近大远小畸变
+    // 小 fov (22°) + 远距 (y=11, z=11) = 画面几乎无透视失真，
+    // 但仍保留微弱的近大远小（比真正交相机自然）
+    camera.position.set(0, 11, 11);
     camera.lookAt(0, 0, 0);
   }, [camera]);
 
@@ -932,8 +934,8 @@ export function BattleField3D({
           >
             <PerspectiveCamera
               makeDefault
-              position={[0, 7, 6.5]}
-              fov={38}
+              position={[0, 11, 11]}
+              fov={22}
               near={0.1}
               far={100}
             />
