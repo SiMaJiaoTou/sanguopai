@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrthographicCamera, Text, Cylinder, Plane } from '@react-three/drei';
+import { PerspectiveCamera, Text, Cylinder, Plane } from '@react-three/drei';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { AnimatePresence, motion } from 'framer-motion';
 import * as THREE from 'three';
@@ -579,8 +579,8 @@ function Scene({
   const { camera } = useThree();
 
   useEffect(() => {
-    // 斜俯视（参考图视角）
-    camera.position.set(0, 5.5, 3.8);
+    // 透视相机：斜俯视（参考图视角），fov 40 给自然的近大远小
+    camera.position.set(0, 5.5, 4.5);
     camera.lookAt(0, 0, 0.2);
   }, [camera]);
 
@@ -903,10 +903,10 @@ export function BattleField3D({
             }}
             style={{ background: 'transparent' }}
           >
-            <OrthographicCamera
+            <PerspectiveCamera
               makeDefault
-              position={[0, 5.5, 3.8]}
-              zoom={100}
+              position={[0, 5.5, 4.5]}
+              fov={40}
               near={0.1}
               far={100}
             />
