@@ -43,109 +43,109 @@ export function GMTool({ onGrantGold, onMaxLevel, onFillHand }: Props) {
       <AnimatePresence>
         {open && (
           <>
-            {/* 背景遮罩 */}
+            {/* 背景遮罩（点击关闭） */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setOpen(false)}
-              className="fixed inset-0 z-40 bg-black/60"
-            />
-
-            {/* 弹出面板 */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.7, y: 40, x: 40 }}
-              animate={{ opacity: 1, scale: 1, y: 0, x: 0 }}
-              exit={{ opacity: 0, scale: 0.8, y: 20, x: 20 }}
-              transition={{ type: 'spring', stiffness: 260, damping: 22 }}
-              className={[
-                'fixed bottom-20 right-4 z-50 w-[300px] rounded-lg wood-panel bronze-border rivets wood-dark',
-                'overflow-hidden',
-              ].join(' ')}
+              className="fixed inset-0 z-40 bg-black/70 flex items-center justify-center p-4"
             >
-              <div className="rivet-b" />
+              {/* 弹出面板（居中，点面板本身不关闭） */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.7, y: 30 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.85, y: 20 }}
+                transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+                onClick={(e) => e.stopPropagation()}
+                className={[
+                  'relative z-50 w-full max-w-[340px] max-h-[90vh] overflow-y-auto',
+                  'rounded-lg wood-panel bronze-border rivets wood-dark',
+                ].join(' ')}
+              >
+                <div className="rivet-b" />
 
-              <div className="flex items-center justify-between mb-3 ink-underline">
-                <div className="flex items-center gap-2">
-                  <div className="seal-red w-7 h-7 text-xs">令</div>
-                  <div className="text-gold-grad font-black tracking-[0.25em] font-kai text-base">
-                    天 降 令 牌
-                  </div>
-                </div>
-                <button
-                  onClick={() => setOpen(false)}
-                  className="text-amber-200/60 hover:text-gold text-lg leading-none w-6 h-6 flex items-center justify-center"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="text-[10px] text-amber-100/50 italic mb-3 text-center">
-                ◈ GM 调试工具 · 测试用 ◈
-              </div>
-
-              {/* 金币档位 */}
-              <div className="space-y-2">
-                {GOLD_TIERS.map((tier) => (
-                  <button
-                    key={tier.amount}
-                    onClick={() => {
-                      onGrantGold(tier.amount);
-                      // 不自动关闭，方便连点
-                    }}
-                    className={[
-                      'btn-wood w-full text-left flex items-center gap-3 py-2 px-3',
-                      'hover:brightness-110',
-                    ].join(' ')}
-                  >
-                    <span className="text-2xl leading-none flex-shrink-0">{tier.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-black tracking-widest">{tier.label}</div>
-                      <div className="text-[10px] text-amber-200/70 tabular-nums">
-                        {tier.desc}
-                      </div>
+                <div className="flex items-center justify-between mb-3 ink-underline">
+                  <div className="flex items-center gap-2">
+                    <div className="seal-red w-7 h-7 text-xs">令</div>
+                    <div className="text-gold-grad font-black tracking-[0.25em] font-kai text-base">
+                      天 降 令 牌
                     </div>
-                    <span className="text-gold-grad text-lg font-black">＋</span>
-                  </button>
-                ))}
-              </div>
-
-              {/* 其它作弊项 */}
-              {(onMaxLevel || onFillHand) && (
-                <>
-                  <div className="my-3 h-px bg-gradient-to-r from-transparent via-amber-700 to-transparent" />
-                  <div className="space-y-2">
-                    {onMaxLevel && (
-                      <button
-                        onClick={onMaxLevel}
-                        className="btn-wood w-full text-left flex items-center gap-3 py-2 px-3"
-                      >
-                        <span className="text-2xl leading-none">👑</span>
-                        <div className="flex-1">
-                          <div className="text-sm font-black tracking-widest">主公晋升</div>
-                          <div className="text-[10px] text-amber-200/70">直升 Lv.6 · 满级</div>
-                        </div>
-                      </button>
-                    )}
-                    {onFillHand && (
-                      <button
-                        onClick={onFillHand}
-                        className="btn-wood w-full text-left flex items-center gap-3 py-2 px-3"
-                      >
-                        <span className="text-2xl leading-none">🎲</span>
-                        <div className="flex-1">
-                          <div className="text-sm font-black tracking-widest">天降奇兵</div>
-                          <div className="text-[10px] text-amber-200/70">免费招募 5 员武将</div>
-                        </div>
-                      </button>
-                    )}
                   </div>
-                </>
-              )}
+                  <button
+                    onClick={() => setOpen(false)}
+                    className="text-amber-200/60 hover:text-gold text-lg leading-none w-7 h-7 flex items-center justify-center rounded border border-amber-900 hover:border-gold bg-black/40"
+                  >
+                    ✕
+                  </button>
+                </div>
 
-              <div className="mt-3 pt-2 border-t border-amber-900/60 text-[10px] text-amber-100/40 italic text-center">
-                · 此乃测试之令 · 正式对弈请关之 ·
-              </div>
+                <div className="text-[10px] text-amber-100/50 italic mb-3 text-center">
+                  ◈ GM 調試工具 · 測試用 ◈
+                </div>
+
+                {/* 金币档位 */}
+                <div className="space-y-2">
+                  {GOLD_TIERS.map((tier) => (
+                    <button
+                      key={tier.amount}
+                      onClick={() => {
+                        onGrantGold(tier.amount);
+                      }}
+                      className={[
+                        'btn-wood w-full text-left flex items-center gap-3 py-2 px-3',
+                        'hover:brightness-110',
+                      ].join(' ')}
+                    >
+                      <span className="text-2xl leading-none flex-shrink-0">{tier.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-black tracking-widest">{tier.label}</div>
+                        <div className="text-[10px] text-amber-200/70 tabular-nums">
+                          {tier.desc}
+                        </div>
+                      </div>
+                      <span className="text-gold-grad text-lg font-black">＋</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* 其它作弊项 */}
+                {(onMaxLevel || onFillHand) && (
+                  <>
+                    <div className="my-3 h-px bg-gradient-to-r from-transparent via-amber-700 to-transparent" />
+                    <div className="space-y-2">
+                      {onMaxLevel && (
+                        <button
+                          onClick={onMaxLevel}
+                          className="btn-wood w-full text-left flex items-center gap-3 py-2 px-3"
+                        >
+                          <span className="text-2xl leading-none">👑</span>
+                          <div className="flex-1">
+                            <div className="text-sm font-black tracking-widest">主公晉升</div>
+                            <div className="text-[10px] text-amber-200/70">直升 Lv.6 · 滿級</div>
+                          </div>
+                        </button>
+                      )}
+                      {onFillHand && (
+                        <button
+                          onClick={onFillHand}
+                          className="btn-wood w-full text-left flex items-center gap-3 py-2 px-3"
+                        >
+                          <span className="text-2xl leading-none">🎲</span>
+                          <div className="flex-1">
+                            <div className="text-sm font-black tracking-widest">天降奇兵</div>
+                            <div className="text-[10px] text-amber-200/70">免費招募 5 員武將</div>
+                          </div>
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+
+                <div className="mt-3 pt-2 border-t border-amber-900 text-[10px] text-amber-100/40 italic text-center">
+                  · 此乃測試之令 · 正式對弈請關之 ·
+                </div>
+              </motion.div>
             </motion.div>
           </>
         )}
