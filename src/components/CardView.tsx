@@ -14,6 +14,17 @@ interface Props {
   height?: number;
 }
 
+/**
+ * 简化版卡面：仅显示阵营（魏/蜀/吴/群）+ 战斗力（点数值）
+ * 视觉结构：
+ *   ┌───────────────┐
+ *   │               │
+ *   │      魏       │   ← 大号阵营字（顶部）
+ *   │               │
+ *   │      13       │   ← 超大战斗力数字（中下部）
+ *   │               │
+ *   └───────────────┘
+ */
 export function CardView({
   card,
   canRedraw,
@@ -30,19 +41,14 @@ export function CardView({
 
   const theme = FACTION_THEME[card.faction];
 
-  // 最终尺寸：显式 width/height > compact > 默认
   const w = width ?? (compact ? 72 : 96);
   const h = height ?? (compact ? 104 : 136);
 
-  // 按卡片宽度缩放字号，保证小尺寸下仍清晰
+  // 按卡片宽度缩放字号
   const scale = w / 96;
   const fs = {
-    faction: Math.max(9, Math.round(11 * scale)),
-    point: Math.max(12, Math.round(16 * scale)),
-    glyph: Math.max(11, Math.round(16 * scale)),
-    name: Math.max(11, Math.round(16 * scale)),
-    val: Math.max(9, Math.round(10 * scale)),
-    glyphSm: Math.max(9, Math.round(11 * scale)),
+    faction: Math.max(18, Math.round(28 * scale)), // 阵营字放大
+    value: Math.max(28, Math.round(44 * scale)),   // 战斗力超大
   };
 
   const style: React.CSSProperties = {
@@ -73,55 +79,67 @@ export function CardView({
         'shadow-card-deep',
         isDragging ? 'opacity-80 shadow-glow' : '',
         highlight ? 'animate-shine' : '',
-        'p-2 flex flex-col justify-between overflow-hidden',
+        'flex flex-col items-center justify-center overflow-hidden',
         'border-2 border-[#1a0f08]',
-        'backdrop-blur-sm',
       ].join(' ')}
       {...listeners}
       {...attributes}
     >
       {/* 材质覆膜（厚重感） */}
       <div className="card-texture-overlay" />
-      
+
       {/* 内边金线装饰 */}
       <div className="absolute inset-1 rounded-md border border-gold/30 pointer-events-none z-[2]" />
 
-      {/* 顶部：阵营 + 点数 */}
-      <div className={`flex items-start justify-between relative z-10 ${theme.accent}`}>
-        <div className="flex flex-col leading-none">
-          <span
-            className="font-bold tracking-widest drop-shadow-md"
-            style={{ fontSize: fs.faction }}
-          >
-            {card.faction}
-          </span>
-          <span className="font-black drop-shadow-md" style={{ fontSize: fs.point }}>
-            {card.pointLabel}
-          </span>
-        </div>
-        <span className="opacity-80 drop-shadow-md" style={{ fontSize: fs.glyph }}>
-          {theme.glyph}
-        </span>
+      {/* 阵营字（上） */}
+      <div
+        className={`relative z-10 font-kai font-black ${theme.accent}`}
+        style={{
+          fontSize: fs.faction,
+          lineHeight: 1,
+          marginBottom: Math.round(6 * scale),
+          textShadow: `
+            -1px -1px 0 rgba(0,0,0,0.8),
+            1px -1px 0 rgba(0,0,0,0.8),
+            -1px 1px 0 rgba(0,0,0,0.8),
+            1px 1px 0 rgba(0,0,0,0.8),
+            0 0 6px rgba(0,0,0,0.6)
+          `,
+          letterSpacing: '0.05em',
+        }}
+      >
+        {card.faction}
       </div>
 
-      {/* 中央：武将名 */}
-      <div className={`text-center relative z-10 ${theme.text} font-serif`}>
-        <div
-          className="drop-shadow-lg"
-          style={{ writingMode: 'horizontal-tb', fontSize: fs.name, lineHeight: 1.15, fontWeight: 900 }}
-        >
-          {card.name}
-        </div>
-      </div>
+      {/* 金线分隔 */}
+      <div
+        className="relative z-10"
+        style={{
+          width: '60%',
+          height: 1,
+          background:
+            'linear-gradient(90deg, transparent 0%, rgba(212,175,55,0.7) 50%, transparent 100%)',
+          marginBottom: Math.round(4 * scale),
+        }}
+      />
 
-      {/* 底部：数值 + 花色 */}
-      <div className={`flex items-end justify-between relative z-10 ${theme.accent}`}>
-        <span className="opacity-90 font-bold drop-shadow-md" style={{ fontSize: fs.val }}>
-          值 {card.pointValue}
-        </span>
-        <span className="opacity-80 drop-shadow-md" style={{ fontSize: fs.glyphSm }}>
-          {theme.glyph}
-        </span>
+      {/* 战斗力数字（下，超大） */}
+      <div
+        className={`relative z-10 font-kai font-black tabular-nums ${theme.text}`}
+        style={{
+          fontSize: fs.value,
+          lineHeight: 1,
+          textShadow: `
+            -1.5px -1.5px 0 rgba(0,0,0,0.9),
+            1.5px -1.5px 0 rgba(0,0,0,0.9),
+            -1.5px 1.5px 0 rgba(0,0,0,0.9),
+            1.5px 1.5px 0 rgba(0,0,0,0.9),
+            0 0 10px rgba(212,175,55,0.4),
+            0 2px 4px rgba(0,0,0,0.8)
+          `,
+        }}
+      >
+        {card.pointValue}
       </div>
 
       {canRedraw && (
@@ -134,7 +152,7 @@ export function CardView({
             e.stopPropagation();
             onRedraw?.(card.id);
           }}
-          className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-gold text-ink text-xs font-bold shadow-md hover:animate-spin"
+          className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-gold text-ink text-xs font-bold shadow-md hover:animate-spin z-20"
           title="消耗 1 次换牌次数"
         >
           ⟳

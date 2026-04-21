@@ -266,18 +266,8 @@ function Soldier({
             clipPath: 'polygon(0 0, 100% 0, 85% 50%, 100% 100%, 0 100%)',
             boxShadow: `inset 0 0 4px rgba(0,0,0,0.5), 0 2px 3px rgba(0,0,0,0.6)`,
             border: `1px solid ${t.flagDark}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: width * 0.16,
-            color: t.char,
-            fontWeight: 900,
-            fontFamily: 'STKaiti, KaiTi, serif',
-            textShadow: `0 0 3px ${t.glow}, 1px 1px 0 ${t.flagDark}`,
           }}
-        >
-          {card.faction}
-        </motion.div>
+        />
 
         {/* =========== 头盔区域 =========== */}
         <div
@@ -340,28 +330,6 @@ function Soldier({
               filter: 'blur(0.3px)',
             }}
           />
-          {/* 头盔前额护片（点数 / 等级徽章） */}
-          <div
-            className="absolute left-1/2 font-kai font-black"
-            style={{
-              top: width * 0.15,
-              width: width * 0.24,
-              height: width * 0.14,
-              transform: 'translateX(-50%)',
-              background: `linear-gradient(180deg, ${t.metal} 0%, ${t.metalDark} 100%)`,
-              border: `1px solid ${t.armorDark}`,
-              borderRadius: 3,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: width * 0.12,
-              color: t.armorDark,
-              boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.4), 0 1px 2px rgba(0,0,0,0.5)',
-              textShadow: '1px 1px 0 rgba(255,255,255,0.3)',
-            }}
-          >
-            {card.pointLabel}
-          </div>
         </div>
 
         {/* =========== 面部 =========== */}
@@ -486,33 +454,34 @@ function Soldier({
           </div>
         </div>
 
-        {/* =========== 腰带（武将名） =========== */}
+        {/* =========== 腰带（纯装饰，无文字） =========== */}
         <div
           className="absolute left-1/2"
           style={{
             bottom: 2,
             width: width * 0.75,
-            height: width * 0.18,
+            height: width * 0.14,
             transform: 'translateX(-50%)',
             background: `linear-gradient(180deg, ${t.metal} 0%, ${t.armorDark} 100%)`,
             border: `1px solid ${t.armorDark}`,
             borderRadius: 3,
             boxShadow:
               'inset 0 1px 1px rgba(255,255,255,0.3), inset 0 -1px 2px rgba(0,0,0,0.5), 0 2px 3px rgba(0,0,0,0.6)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: Math.max(10, width * 0.14),
-            color: t.armorDark,
-            fontFamily: 'STKaiti, KaiTi, serif',
-            fontWeight: 900,
-            letterSpacing: '0.05em',
-            textShadow: '0 1px 0 rgba(255,255,255,0.3)',
-            overflow: 'hidden',
-            whiteSpace: 'nowrap',
           }}
         >
-          {card.name}
+          {/* 腰带中央的圆形带扣装饰 */}
+          <div
+            className="absolute left-1/2 top-1/2"
+            style={{
+              width: width * 0.09,
+              height: width * 0.09,
+              transform: 'translate(-50%, -50%)',
+              background: `radial-gradient(circle at 30% 30%, ${t.metal} 0%, ${t.metalDark} 70%, #000 100%)`,
+              borderRadius: '50%',
+              boxShadow: `inset 1px 1px 1px rgba(255,255,255,0.5), 0 0 3px ${t.glow}`,
+              border: `1px solid ${t.armorDark}`,
+            }}
+          />
         </div>
       </motion.div>
 
