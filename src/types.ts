@@ -2,7 +2,9 @@
 
 export type Faction = '魏' | '蜀' | '吴' | '群';
 
-export type PointLabel = '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10' | 'J' | 'Q' | 'K' | 'A' | '2';
+export type PointLabel =
+  | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10'
+  | 'J' | 'Q' | 'K' | 'A' | '2';
 
 export interface Card {
   id: string;
@@ -12,46 +14,42 @@ export interface Card {
   name: string;
 }
 
-// 牌型枚举（按优先级从高到低）
-export type HandTypeKey =
-  | 'FIVE_OF_A_KIND'        // 五条
-  | 'FLUSH_FULL_HOUSE'      // 同花葫芦
-  | 'STRAIGHT_FLUSH'        // 同花顺
-  | 'FLUSH_THREE'           // 同花三条
-  | 'FOUR_OF_A_KIND'        // 四条
-  | 'FLUSH_TWO_PAIR'        // 同花两对
-  | 'FLUSH_ONE_PAIR'        // 同花一对
-  | 'FULL_HOUSE'            // 葫芦
-  | 'FLUSH_HIGH'            // 同花散牌
-  | 'STRAIGHT'              // 顺子
-  | 'THREE_OF_A_KIND'       // 三条
-  | 'TWO_PAIR'              // 两对
-  | 'ONE_PAIR'              // 一对
-  | 'HIGH_CARD';            // 散牌
-
-export interface HandType {
-  key: HandTypeKey;
-  name: string;
-  multiplier: number;
-  priority: number; // 1 最高
-}
+/** 点数牌型（乘区 1） */
+export type RankTypeKey =
+  | 'FIVE_OF_A_KIND'
+  | 'FOUR_OF_A_KIND'
+  | 'FULL_HOUSE'
+  | 'STRAIGHT'
+  | 'THREE_OF_A_KIND'
+  | 'TWO_PAIR'
+  | 'ONE_PAIR'
+  | 'HIGH_CARD';
 
 export interface EvaluateResult {
-  handType: HandType;
-  pointSum: number;   // 5 张牌点数之和
-  power: number;      // pointSum × multiplier
+  rankType: { key: RankTypeKey; name: string; score: number; priority: number };
+  suitBonus: number;      // 同花 +5，否则 0
+  isFlush: boolean;
+  multiplier: number;     // rankType.score + suitBonus
+  pointSum: number;       // 5 张点数总和
+  rawPower: number;       // pointSum × multiplier（未封顶）
+  power: number;          // 封顶后的战力
+  capped: boolean;        // 是否触发了 803 封顶
 }
 
-// 回合配置
+/** 回合配置 */
 export interface RoundConfig {
-  round: number;            // 0 = 开局
-  drawCount: number;        // 本回合新抽牌数
-  totalCards: number;       // 本回合手上应有的总卡数
-  redrawsGain: number;      // 本回合新增换牌次数
+  round: number;
+  initialDrawCount: number; // 开局抽牌数
+  freeRedrawsGain: number;  // 本回合新增免费换牌次数
   teamsRequired: number;    // 需要填满几个队伍
   description: string;
+  yearIncome: number;       // 本回合结束时的金币收入
+  expGain: number;          // 本回合结束时自动获得的招募经验
 }
 
 export type SlotLocation =
   | { type: 'hand'; index: number }
   | { type: 'team'; teamIndex: number; slotIndex: number };
+
+/** 招募等级 1~6 */
+export type RecruitLevel = 1 | 2 | 3 | 4 | 5 | 6;

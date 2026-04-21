@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Card, EvaluateResult } from '../types';
+import { POWER_CAP } from '../evaluate';
 import { TeamSlot } from './TeamSlot';
 
 interface Props {
@@ -12,16 +13,16 @@ interface Props {
 }
 
 const SLOTS = 5;
-const GAP = 8;          // 槽间距 px
-const MIN_W = 60;       // 最小卡牌宽 px
-const MAX_W = 96;       // 最大卡牌宽 px（标准尺寸）
-const RATIO = 136 / 96; // 高 / 宽
+const GAP = 8;
+const MIN_W = 60;
+const MAX_W = 96;
+const RATIO = 136 / 96;
 
 export function TeamPanel({ teamIndex, cards, evalResult, canRedraw, onRedraw }: Props) {
   const full = cards.every((c) => c !== null);
-  const highlight = !!evalResult && evalResult.handType.multiplier >= 15;
+  // 高倍率判定：点数值 ≥ 6 或达成同花
+  const highlight = !!evalResult && (evalResult.rankType.score >= 6 || evalResult.isFlush);
 
-  // 动态测量容器宽度
   const rowRef = useRef<HTMLDivElement | null>(null);
   const [cardW, setCardW] = useState(MAX_W);
 
@@ -52,23 +53,30 @@ export function TeamPanel({ teamIndex, cards, evalResult, canRedraw, onRedraw }:
       ].join(' ')}
     >
       <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           <div className="text-gold font-bold text-lg">第 {teamIndex + 1} 军</div>
           {full && evalResult ? (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-white/60">牌型</span>
+            <div className="flex items-center gap-1.5 flex-wrap">
               <motion.span
-                key={evalResult.handType.key}
+                key={evalResult.rankType.key}
                 initial={{ scale: 0.6, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 className={[
-                  'px-2 py-0.5 rounded-md text-sm font-bold',
-                  highlight ? 'bg-gold text-ink' : 'bg-white/10 text-white',
+                  'px-2 py-0.5 rounded-md text-xs font-bold',
+                  'bg-white/10 text-white',
                 ].join(' ')}
               >
-                {evalResult.handType.name}
+                {evalResult.rankType.name}
               </motion.span>
-              <span className="text-xs text-white/50">×{evalResult.handType.multiplier}</span>
+              {evalResult.isFlush && (
+                <motion.span
+                  initial={{ scale: 0.6, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="px-2 py-0.5 rounded-md text-xs font-bold bg-gold text-ink"
+                >
+                  同花
+                </motion.span>
+              )}
             </div>
           ) : (
             <span className="text-xs text-white/40">配队中…</span>
@@ -91,13 +99,54 @@ export function TeamPanel({ teamIndex, cards, evalResult, canRedraw, onRedraw }:
               {full && evalResult ? evalResult.power : 0}
             </motion.div>
           </AnimatePresence>
-          {full && evalResult && (
-            <div className="text-[10px] text-white/40">
-              点数和 {evalResult.pointSum} × {evalResult.handType.multiplier}
-            </div>
-          )}
         </div>
       </div>
+
+      {/* 算法拆解反馈：点数和 × (牌型值 + 同花) = 战力 */}
+      {full && evalResult && (
+        <motion.div
+          layout
+          initial={{ opacity: 0, y: -4 }}
+          animate={{ opacity: 1, y: 0 }}
+          className={[
+            'mb-3 px-3 py-2 rounded-lg text-[11px] leading-tight',
+            'bg-black/30 border border-white/10',
+          ].join(' ')}
+        >
+          <div className="flex items-center justify-center gap-1.5 font-mono flex-wrap">
+            <span className="text-white/60">{evalResult.pointSum}</span>
+            <span className="text-white/40">×</span>
+            <span className="text-white/40">(</span>
+            <span className="text-emerald-300">{evalResult.rankType.score}</span>
+            <span className="text-white/40">+</span>
+            <span className={evalResult.isFlush ? 'text-gold font-bold' : 'text-white/35'}>
+              {evalResult.suitBonus}
+            </span>
+            <span className="text-white/40">)</span>
+            <span className="text-white/40">=</span>
+            <span
+              className={[
+                'font-black',
+                evalResult.capped ? 'text-red-300 line-through' : 'text-gold',
+              ].join(' ')}
+            >
+              {evalResult.rawPower}
+            </span>
+            {evalResult.capped && (
+              <>
+                <span className="text-white/40">→</span>
+                <span className="text-red-300 font-black">{POWER_CAP}</span>
+                <span className="text-[9px] text-red-300/80 px-1 py-0 rounded bg-red-500/20 border border-red-400/40">
+                  封顶
+                </span>
+              </>
+            )}
+          </div>
+          <div className="text-center text-[9px] text-white/35 mt-1">
+            点数和 × (点数牌型值 + 同花加成) = 战力{evalResult.capped && '（上限 803）'}
+          </div>
+        </motion.div>
+      )}
 
       <div
         ref={rowRef}

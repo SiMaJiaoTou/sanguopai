@@ -12,8 +12,14 @@ import {
 import { AnimatePresence } from 'framer-motion';
 import { useGameStore, type SlotTarget, type PowerSnapshot } from './store';
 import { evaluateHand } from './evaluate';
-import { ROUND_CONFIGS, FINAL_ROUND, FACTION_THEME } from './data';
-import type { Card, HandTypeKey } from './types';
+import {
+  ROUND_CONFIGS,
+  FINAL_ROUND,
+  FACTION_THEME,
+  LEVEL_EXP_REQUIRED,
+  ECONOMY_CONFIG,
+} from './data';
+import type { Card, RankTypeKey } from './types';
 
 import { TopBar } from './components/TopBar';
 import { TeamPanel } from './components/TeamPanel';
@@ -23,6 +29,8 @@ import { GameOverModal } from './components/GameOverModal';
 import { RedrawZone } from './components/RedrawZone';
 import { HandTypeTable } from './components/HandTypeTable';
 import { PowerChart } from './components/PowerChart';
+import { RecruitPanel } from './components/RecruitPanel';
+import { Toast } from './components/Toast';
 
 function findCardById(
   hand: Card[],
@@ -40,7 +48,7 @@ export default function App() {
   const [activeId, setActiveId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (state.hand.length === 0 && state.deck.length === 0) {
+    if (state.hand.length === 0 && state.deck.length === 0 && state.round === 0 && state.gold === 0) {
       state.startNewGame();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -62,15 +70,16 @@ export default function App() {
   const totalPower =
     (team0Eval?.power ?? 0) + (teamsRequired >= 2 ? team1Eval?.power ?? 0 : 0);
 
-  // 当前已触发的牌型（用于倍率表高亮）
-  const activeHandKeys = useMemo(() => {
-    const keys: HandTypeKey[] = [];
-    if (team0Eval) keys.push(team0Eval.handType.key);
-    if (team1Eval && teamsRequired >= 2) keys.push(team1Eval.handType.key);
+  const activeRankKeys = useMemo(() => {
+    const keys: RankTypeKey[] = [];
+    if (team0Eval) keys.push(team0Eval.rankType.key);
+    if (team1Eval && teamsRequired >= 2) keys.push(team1Eval.rankType.key);
     return keys;
   }, [team0Eval, team1Eval, teamsRequired]);
 
-  // 满槽判定，决定"下一回合"是否可用
+  const anyFlush =
+    (team0Eval?.isFlush ?? false) || (teamsRequired >= 2 && (team1Eval?.isFlush ?? false));
+
   const requiredTeamsFull = useMemo(() => {
     for (let ti = 0; ti < teamsRequired; ti++) {
       if (!state.teams[ti].every((c) => c !== null)) return false;
@@ -79,23 +88,16 @@ export default function App() {
   }, [state.teams, teamsRequired]);
 
   // 拖拽感应器
-  //  - 桌面端：鼠标移动 5px 即激活，响应灵敏
-  //  - 移动端：需长按 220ms 以上才进入拖拽模式；在此期间的短滑动视为滚动页面
-  //    同时允许手指轻微抖动 (tolerance=8px) 不打断判定
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, {
-      activationConstraint: { delay: 220, tolerance: 8 },
-    }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 220, tolerance: 8 } }),
   );
 
   const onDragStart = (e: DragStartEvent) => {
     setActiveId(String(e.active.id));
-    // 拖拽过程中锁定 body 滚动，防止页面抖动
     if (typeof document !== 'undefined') {
       document.body.classList.add('dnd-dragging');
     }
-    // 移动端触觉反馈：拖拽激活时轻微震动
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
       navigator.vibrate?.(12);
     }
@@ -112,30 +114,28 @@ export default function App() {
     const data: any = over.data.current;
     if (!data) return;
 
-    // 拖到换牌区 → 触发换牌
     if (data.type === 'redraw') {
-      if (state.redrawsLeft > 0) state.redraw(fromId);
+      state.redraw(fromId);
       return;
     }
 
     let target: SlotTarget;
-    if (data.type === 'hand') {
-      target = { type: 'hand' };
-    } else if (data.type === 'team') {
+    if (data.type === 'hand') target = { type: 'hand' };
+    else if (data.type === 'team')
       target = { type: 'team', teamIndex: data.teamIndex, slotIndex: data.slotIndex };
-    } else return;
+    else return;
     state.moveCard(fromId, target);
   };
 
   const activeCard = activeId ? findCardById(state.hand, state.teams, activeId) : null;
-
-  const canRedraw = state.redrawsLeft > 0 && !state.isFinished;
 
   const buildSnapshot = (): PowerSnapshot => ({
     round: state.round,
     team0Power: team0Eval?.power ?? 0,
     team1Power: teamsRequired >= 2 ? team1Eval?.power ?? 0 : 0,
     totalPower,
+    gold: state.gold,
+    recruitLevel: state.recruitLevel,
   });
 
   const handleNext = () => {
@@ -152,21 +152,34 @@ export default function App() {
     state.startNewGame();
   };
 
-  // 牌池阵营剩余张数
   const factionCount = useMemo(() => {
     const m: Record<string, number> = { 魏: 0, 蜀: 0, 吴: 0, 群: 0 };
     state.deck.forEach((c) => (m[c.faction] += 1));
     return m;
   }, [state.deck]);
 
+  const expNeed =
+    state.recruitLevel >= 6 ? Infinity : LEVEL_EXP_REQUIRED[state.recruitLevel];
+
+  // redraw 判定
+  const canRedrawFree = state.freeRedrawsLeft > 0 && !state.isFinished;
+  const canRedrawAny =
+    (canRedrawFree || state.gold >= ECONOMY_CONFIG.paidRedrawCost) && !state.isFinished;
+
   return (
     <div className="min-h-screen bg-scroll">
       <TopBar
         round={state.round}
         roundDesc={cfg.description}
-        redrawsLeft={state.redrawsLeft}
+        freeRedrawsLeft={state.freeRedrawsLeft}
+        gold={state.gold}
+        recruitLevel={state.recruitLevel}
+        recruitExp={state.recruitExp}
+        expNeed={expNeed}
         totalPower={totalPower}
       />
+
+      <Toast message={state.lastMessage} onClose={state.clearMessage} />
 
       <DndContext
         sensors={sensors}
@@ -180,14 +193,18 @@ export default function App() {
         }}
       >
         <div className="max-w-[1400px] mx-auto p-3 sm:p-6 grid grid-cols-12 gap-4 sm:gap-6">
-          {/* 移动端：换将令置顶方便操作 */}
+          {/* 移动端：换将令置顶 */}
           <div className="col-span-12 lg:hidden">
-            <RedrawZone redrawsLeft={state.redrawsLeft} compact />
+            <RedrawZone
+              freeRedrawsLeft={state.freeRedrawsLeft}
+              gold={state.gold}
+              paidCost={ECONOMY_CONFIG.paidRedrawCost}
+              compact
+            />
           </div>
 
-          {/* 左主栏：战场 + 操作 + 手牌 */}
+          {/* 左主栏 */}
           <div className="col-span-12 lg:col-span-8 space-y-4 sm:space-y-6">
-            {/* 战场 */}
             <div
               className={`grid gap-4 ${
                 teamsRequired >= 2 ? 'grid-cols-2' : 'grid-cols-1'
@@ -197,7 +214,7 @@ export default function App() {
                 teamIndex={0}
                 cards={state.teams[0]}
                 evalResult={team0Eval}
-                canRedraw={canRedraw}
+                canRedraw={canRedrawAny}
                 onRedraw={state.redraw}
               />
               {teamsRequired >= 2 && (
@@ -205,7 +222,7 @@ export default function App() {
                   teamIndex={1}
                   cards={state.teams[1]}
                   evalResult={team1Eval}
-                  canRedraw={canRedraw}
+                  canRedraw={canRedrawAny}
                   onRedraw={state.redraw}
                 />
               )}
@@ -256,23 +273,40 @@ export default function App() {
               </div>
             </div>
 
-            {/* 手牌区 */}
-            <HandArea cards={state.hand} canRedraw={canRedraw} onRedraw={state.redraw} />
+            <HandArea
+              cards={state.hand}
+              canRedraw={canRedrawAny}
+              onRedraw={state.redraw}
+            />
 
-            {/* 规则提示 */}
             <div className="text-[11px] text-white/40 leading-relaxed border-t border-white/5 pt-3">
-              本回合目标：填满 <span className="text-gold">{teamsRequired}</span> 队 · 当前手牌总数{' '}
-              {state.hand.length + state.teams.flat().filter(Boolean).length} / {cfg.totalCards} 张 ·
-              拖拽卡牌至右侧 <span className="text-gold">「换将令」</span> 区块即可消耗 1 次替换
+              本回合目标：填满 <span className="text-gold">{teamsRequired}</span> 队 ·
+              手牌 {state.hand.length + state.teams.flat().filter(Boolean).length} 张 ·
+              战力 = <span className="text-emerald-300">点数和</span> ×
+              (<span className="text-emerald-300">点数牌型</span> +
+              <span className="text-gold">同花加成</span>)，上限 <span className="text-red-300">803</span>
             </div>
           </div>
 
-          {/* 右侧栏：换牌区(桌面端) + 倍率表 + 折线图 */}
+          {/* 右侧栏 */}
           <div className="col-span-12 lg:col-span-4 space-y-4">
             <div className="hidden lg:block">
-              <RedrawZone redrawsLeft={state.redrawsLeft} />
+              <RedrawZone
+                freeRedrawsLeft={state.freeRedrawsLeft}
+                gold={state.gold}
+                paidCost={ECONOMY_CONFIG.paidRedrawCost}
+              />
             </div>
-            <HandTypeTable activeKeys={activeHandKeys} />
+            <RecruitPanel
+              gold={state.gold}
+              buyCount={state.buyCount}
+              recruitLevel={state.recruitLevel}
+              recruitExp={state.recruitExp}
+              onBuy={state.buyCard}
+              onUpgrade={state.upgradeLevel}
+              disabled={state.isFinished}
+            />
+            <HandTypeTable activeRankKeys={activeRankKeys} anyFlush={anyFlush} />
             <PowerChart
               history={state.powerHistory}
               currentRound={state.round}
@@ -293,7 +327,12 @@ export default function App() {
 
       <AnimatePresence>
         {state.isFinished && (
-          <GameOverModal totalPower={totalPower} onRestart={handleRestart} />
+          <GameOverModal
+            totalPower={totalPower}
+            gold={state.gold}
+            recruitLevel={state.recruitLevel}
+            onRestart={handleRestart}
+          />
         )}
       </AnimatePresence>
     </div>

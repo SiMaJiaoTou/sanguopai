@@ -177,18 +177,54 @@ export function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-/** 回合配置表（严格按 PRD 3.1） */
+/** 回合配置表（PRD-Revision 版：去掉 drawCount/totalCards，改为每年经济/经验） */
 export const ROUND_CONFIGS: RoundConfig[] = [
-  { round: 0, drawCount: 5, totalCards: 5, redrawsGain: 2, teamsRequired: 1, description: '开局 · 布阵伊始' },
-  { round: 1, drawCount: 2, totalCards: 7, redrawsGain: 2, teamsRequired: 1, description: '第一回合 · 初显锋芒' },
-  { round: 2, drawCount: 2, totalCards: 9, redrawsGain: 2, teamsRequired: 1, description: '第二回合 · 鏖战中原' },
-  { round: 3, drawCount: 2, totalCards: 11, redrawsGain: 2, teamsRequired: 2, description: '第三回合 · 双军并进' },
-  { round: 4, drawCount: 1, totalCards: 12, redrawsGain: 2, teamsRequired: 2, description: '第四回合 · 合纵连横' },
-  { round: 5, drawCount: 1, totalCards: 13, redrawsGain: 2, teamsRequired: 2, description: '第五回合 · 势如破竹' },
-  { round: 6, drawCount: 1, totalCards: 14, redrawsGain: 2, teamsRequired: 2, description: '第六回合 · 一统河山' },
+  { round: 0, initialDrawCount: 5, freeRedrawsGain: 2, teamsRequired: 1, description: '开局 · 布阵伊始', yearIncome: 0,  expGain: 0 },
+  { round: 1, initialDrawCount: 0, freeRedrawsGain: 2, teamsRequired: 1, description: '第一年 · 初显锋芒', yearIncome: 3,  expGain: 2 },
+  { round: 2, initialDrawCount: 0, freeRedrawsGain: 2, teamsRequired: 1, description: '第二年 · 鏖战中原', yearIncome: 4,  expGain: 3 },
+  { round: 3, initialDrawCount: 0, freeRedrawsGain: 2, teamsRequired: 2, description: '第三年 · 双军并进', yearIncome: 5,  expGain: 3 },
+  { round: 4, initialDrawCount: 0, freeRedrawsGain: 2, teamsRequired: 2, description: '第四年 · 合纵连横', yearIncome: 6,  expGain: 4 },
+  { round: 5, initialDrawCount: 0, freeRedrawsGain: 2, teamsRequired: 2, description: '第五年 · 势如破竹', yearIncome: 7,  expGain: 4 },
+  { round: 6, initialDrawCount: 0, freeRedrawsGain: 2, teamsRequired: 2, description: '第六年 · 一统河山', yearIncome: 8,  expGain: 0 },
 ];
 
 export const FINAL_ROUND = 6;
+
+/** 经济系统配置（便于策划后续调参） */
+export const ECONOMY_CONFIG = {
+  initialGold: 4,          // 开局初始金币
+  baseIncomePerYear: 3,    // 每回合基础收入（ROUND_CONFIGS 里 yearIncome 已细化，此项为回退默认）
+  buyCardBasePrice: 1,     // 第 1 次买牌价格
+  buyCardPriceDelta: 1,    // 每多买 1 次 +1 金币
+  paidRedrawCost: 2,       // 付费换牌固定 2 金币
+  upgradeExpPerGold: 1,    // 花 1 金币 = +1 经验
+};
+
+/** 招募等级解锁表 —— 每级解锁的点数（pointValue）集合 */
+export const LEVEL_UNLOCK_TABLE: Record<number, number[]> = {
+  1: [3, 4, 5, 6],
+  2: [3, 4, 5, 6, 7, 8],
+  3: [3, 4, 5, 6, 7, 8, 9, 10],
+  4: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+  5: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+  6: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+};
+
+/** 每级升级到下一级所需经验（exp） */
+export const LEVEL_EXP_REQUIRED: Record<number, number> = {
+  1: 3,
+  2: 5,
+  3: 7,
+  4: 9,
+  5: 12,
+  6: Infinity, // 满级
+};
+
+/** 取某等级解锁的点数集合 */
+export function levelUnlockedValues(level: number): Set<number> {
+  const key = Math.max(1, Math.min(6, level));
+  return new Set(LEVEL_UNLOCK_TABLE[key]);
+}
 
 /** 阵营配色主题 */
 export const FACTION_THEME: Record<
