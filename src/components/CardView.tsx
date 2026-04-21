@@ -73,49 +73,53 @@ export function CardView({
         'shadow-card-deep',
         isDragging ? 'opacity-80 shadow-glow' : '',
         highlight ? 'animate-shine' : '',
-        'p-2 flex flex-col justify-between',
-        'border border-white/10',
+        'p-2 flex flex-col justify-between overflow-hidden',
+        'border-2 border-[#1a0f08]',
         'backdrop-blur-sm',
       ].join(' ')}
       {...listeners}
       {...attributes}
     >
+      {/* 材质覆膜（厚重感） */}
+      <div className="card-texture-overlay" />
+      
       {/* 内边金线装饰 */}
-      <div className="absolute inset-1 rounded-md border border-gold/30 pointer-events-none" />
+      <div className="absolute inset-1 rounded-md border border-gold/30 pointer-events-none z-[2]" />
 
       {/* 顶部：阵营 + 点数 */}
-      <div className={`flex items-start justify-between ${theme.accent}`}>
+      <div className={`flex items-start justify-between relative z-10 ${theme.accent}`}>
         <div className="flex flex-col leading-none">
           <span
-            className="font-bold tracking-widest"
+            className="font-bold tracking-widest drop-shadow-md"
             style={{ fontSize: fs.faction }}
           >
             {card.faction}
           </span>
-          <span className="font-black" style={{ fontSize: fs.point }}>
+          <span className="font-black drop-shadow-md" style={{ fontSize: fs.point }}>
             {card.pointLabel}
           </span>
         </div>
-        <span className="opacity-70" style={{ fontSize: fs.glyph }}>
+        <span className="opacity-80 drop-shadow-md" style={{ fontSize: fs.glyph }}>
           {theme.glyph}
         </span>
       </div>
 
       {/* 中央：武将名 */}
-      <div className={`text-center ${theme.text} font-serif`}>
+      <div className={`text-center relative z-10 ${theme.text} font-serif`}>
         <div
-          style={{ writingMode: 'horizontal-tb', fontSize: fs.name, lineHeight: 1.15 }}
+          className="drop-shadow-lg"
+          style={{ writingMode: 'horizontal-tb', fontSize: fs.name, lineHeight: 1.15, fontWeight: 900 }}
         >
           {card.name}
         </div>
       </div>
 
       {/* 底部：数值 + 花色 */}
-      <div className={`flex items-end justify-between ${theme.accent}`}>
-        <span className="opacity-80" style={{ fontSize: fs.val }}>
+      <div className={`flex items-end justify-between relative z-10 ${theme.accent}`}>
+        <span className="opacity-90 font-bold drop-shadow-md" style={{ fontSize: fs.val }}>
           值 {card.pointValue}
         </span>
-        <span className="opacity-70" style={{ fontSize: fs.glyphSm }}>
+        <span className="opacity-80 drop-shadow-md" style={{ fontSize: fs.glyphSm }}>
           {theme.glyph}
         </span>
       </div>

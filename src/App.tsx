@@ -22,7 +22,7 @@ import {
 import type { Card, RankTypeKey } from './types';
 
 import { TopBar } from './components/TopBar';
-import { TeamPanel } from './components/TeamPanel';
+import { BattleField3D } from './components/BattleField3D';
 import { HandArea } from './components/HandArea';
 import { CardView } from './components/CardView';
 import { GameOverModal } from './components/GameOverModal';
@@ -251,7 +251,7 @@ export default function App() {
                 teamsRequired >= 2 ? 'grid-cols-2' : 'grid-cols-1'
               }`}
             >
-              <TeamPanel
+              <BattleField3D
                 teamIndex={0}
                 cards={state.teams[0]}
                 evalResult={team0Eval}
@@ -259,7 +259,7 @@ export default function App() {
                 onRedraw={state.redraw}
               />
               {teamsRequired >= 2 && (
-                <TeamPanel
+                <BattleField3D
                   teamIndex={1}
                   cards={state.teams[1]}
                   evalResult={team1Eval}
@@ -270,7 +270,7 @@ export default function App() {
             </div>
 
             {/* 操作区 */}
-            <div className="flex items-center justify-between gap-3 flex-wrap relative rounded-lg wood-light px-3 py-2.5 border-2 border-amber-900">
+            <div className="flex items-center justify-between gap-3 flex-wrap relative rounded-lg wood-light px-4 py-3 border-4 border-amber-950 shadow-card-deep">
               <div className="flex items-center gap-2 text-xs text-amber-100/80 flex-wrap font-kai">
                 <span>牌库 <span className="text-gold-grad font-black tabular-nums">{state.deck.length}</span></span>
                 {(['魏', '蜀', '吴', '群'] as const).map((f) => (

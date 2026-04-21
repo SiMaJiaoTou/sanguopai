@@ -60,6 +60,54 @@ button,
    材质类
    ============================================================ */
 
+/* 阵营卡牌底纹 (厚重拟物) */
+.card-wei {
+  background-color: #1a2238;
+  background-image: 
+    repeating-linear-gradient(45deg, rgba(0,0,0,0.1) 0 2px, transparent 2px 4px),
+    radial-gradient(ellipse at 20% 20%, rgba(50, 80, 150, 0.25), transparent 70%),
+    linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  box-shadow: inset 0 2px 4px rgba(100, 150, 255, 0.2), inset 0 -2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.card-shu {
+  background-color: #4a1515;
+  background-image: 
+    repeating-linear-gradient(45deg, rgba(0,0,0,0.15) 0 2px, transparent 2px 4px),
+    radial-gradient(ellipse at 20% 20%, rgba(200, 50, 50, 0.25), transparent 70%),
+    linear-gradient(135deg, #7f1d1d 0%, #450a0a 100%);
+  box-shadow: inset 0 2px 4px rgba(255, 100, 100, 0.2), inset 0 -2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.card-wu {
+  background-color: #113322;
+  background-image: 
+    repeating-linear-gradient(45deg, rgba(0,0,0,0.15) 0 2px, transparent 2px 4px),
+    radial-gradient(ellipse at 20% 20%, rgba(50, 180, 100, 0.25), transparent 70%),
+    linear-gradient(135deg, #064e3b 0%, #022c22 100%);
+  box-shadow: inset 0 2px 4px rgba(100, 255, 150, 0.15), inset 0 -2px 8px rgba(0, 0, 0, 0.8);
+}
+
+.card-qun {
+  background-color: #27272a;
+  background-image: 
+    repeating-linear-gradient(45deg, rgba(0,0,0,0.15) 0 2px, transparent 2px 4px),
+    radial-gradient(ellipse at 20% 20%, rgba(180, 150, 100, 0.2), transparent 70%),
+    linear-gradient(135deg, #3f3f46 0%, #18181b 100%);
+  box-shadow: inset 0 2px 4px rgba(255, 200, 100, 0.2), inset 0 -2px 8px rgba(0, 0, 0, 0.8);
+}
+
+/* 更厚重的卡牌质感覆膜 */
+.card-texture-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,0.5) 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  z-index: 1;
+}
+
 /* 深色木板纹理（用于主面板底） */
 .wood-dark {
   background-color: #3a2418;
@@ -168,27 +216,28 @@ button,
   padding: 16px;
   box-shadow:
     /* 外层深阴影 */
-    0 8px 20px rgba(0, 0, 0, 0.8),
-    0 2px 6px rgba(0, 0, 0, 0.6),
+    0 12px 24px rgba(0, 0, 0, 0.9),
+    0 4px 10px rgba(0, 0, 0, 0.7),
     /* 顶部高光 */
-    inset 0 1px 2px rgba(255, 200, 120, 0.3),
+    inset 0 2px 3px rgba(255, 200, 120, 0.25),
     /* 底部暗化 */
-    inset 0 -2px 6px rgba(0, 0, 0, 0.5);
-  border: 1px solid rgba(0, 0, 0, 0.6);
+    inset 0 -3px 8px rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(0, 0, 0, 0.8);
 }
 
 /* 青铜框（金属边框） */
 .bronze-border {
-  border-width: 4px;
+  border-width: 6px;
   border-style: solid;
   border-image: linear-gradient(
       135deg,
-      #a8753a 0%,
-      #d4af37 20%,
+      #b88645 0%,
+      #f7d57a 20%,
       #8b5a28 50%,
       #4a2e18 80%,
-      #8b5a28 100%
+      #b88645 100%
     ) 1;
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.8), 0 0 8px rgba(0,0,0,0.6);
 }
 
 /* 铆钉四角装饰 */
@@ -198,32 +247,32 @@ button,
 .rivets > .rivet-b::after {
   content: '';
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   background: radial-gradient(
     circle at 30% 30%,
-    #e8c070 0%,
+    #f7d57a 0%,
     #a8753a 40%,
-    #4a2e18 100%
+    #2a1608 100%
   );
   box-shadow:
-    inset 0 -1px 2px rgba(0, 0, 0, 0.6),
-    0 1px 2px rgba(0, 0, 0, 0.8),
-    0 0 0 1px rgba(0, 0, 0, 0.5);
+    inset 0 -2px 3px rgba(0, 0, 0, 0.8),
+    0 2px 4px rgba(0, 0, 0, 0.9),
+    0 0 0 1px rgba(0, 0, 0, 0.7);
   z-index: 2;
 }
-.rivets::before { top: 6px; left: 6px; }
-.rivets::after { top: 6px; right: 6px; }
-.rivets > .rivet-b { position: absolute; inset: 0; pointer-events: none; }
-.rivets > .rivet-b::before { bottom: 6px; left: 6px; top: auto; }
-.rivets > .rivet-b::after { bottom: 6px; right: 6px; top: auto; }
+.rivets::before { top: 4px; left: 4px; }
+.rivets::after { top: 4px; right: 4px; }
+.rivets > .rivet-b { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.rivets > .rivet-b::before { bottom: 4px; left: 4px; top: auto; }
+.rivets > .rivet-b::after { bottom: 4px; right: 4px; top: auto; }
 
 /* 木质立体按钮（可按压） */
 .btn-wood {
   position: relative;
-  padding: 8px 16px;
-  border-radius: 6px;
+  padding: 10px 20px;
+  border-radius: 8px;
   font-family: 'STKaiti', 'KaiTi', serif;
   font-weight: 900;
   letter-spacing: 0.1em;
@@ -232,56 +281,61 @@ button,
   background-image:
     repeating-linear-gradient(
       90deg,
-      rgba(0, 0, 0, 0.12) 0 1px,
+      rgba(0, 0, 0, 0.15) 0 1px,
       transparent 1px 3px
     ),
-    linear-gradient(180deg, #7a5234 0%, #5a3a24 50%, #3a2214 100%);
-  border: 2px solid #2a1808;
+    linear-gradient(180deg, #8a5a3a 0%, #5a3a24 50%, #2a160a 100%);
+  border: 2px solid #1a0f06;
   box-shadow:
-    inset 0 1px 0 rgba(255, 200, 120, 0.35),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.5),
-    0 3px 0 #1a0f06,
-    0 4px 6px rgba(0, 0, 0, 0.6);
+    inset 0 2px 2px rgba(255, 200, 120, 0.4),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.6),
+    0 4px 0 #1a0f06,
+    0 6px 10px rgba(0, 0, 0, 0.7);
   text-shadow:
     1px 1px 0 #000,
-    0 0 4px rgba(212, 175, 55, 0.4);
+    0 0 6px rgba(212, 175, 55, 0.5);
   transition: transform 0.08s, box-shadow 0.08s;
   cursor: pointer;
 }
 .btn-wood:hover:not(:disabled) {
-  filter: brightness(1.08);
+  filter: brightness(1.1);
 }
 .btn-wood:active:not(:disabled) {
-  transform: translateY(2px);
+  transform: translateY(4px);
   box-shadow:
-    inset 0 1px 0 rgba(255, 200, 120, 0.25),
-    inset 0 -1px 3px rgba(0, 0, 0, 0.6),
-    0 1px 0 #1a0f06,
-    0 1px 3px rgba(0, 0, 0, 0.4);
+    inset 0 1px 1px rgba(255, 200, 120, 0.2),
+    inset 0 -1px 3px rgba(0, 0, 0, 0.7),
+    0 0px 0 #1a0f06,
+    0 2px 4px rgba(0, 0, 0, 0.5);
 }
 .btn-wood:disabled {
-  filter: saturate(0.4) brightness(0.65);
+  filter: saturate(0.2) brightness(0.5);
   cursor: not-allowed;
+  transform: translateY(2px);
+  box-shadow:
+    inset 0 1px 1px rgba(255, 200, 120, 0.1),
+    0 2px 0 #1a0f06,
+    0 2px 4px rgba(0, 0, 0, 0.4);
 }
 
 /* 金色强调按钮 */
 .btn-gold {
-  color: #2a1808;
+  color: #1a0f06;
   background-color: #c89c3e;
   background-image:
     repeating-linear-gradient(
       90deg,
-      rgba(0, 0, 0, 0.05) 0 1px,
+      rgba(0, 0, 0, 0.08) 0 1px,
       transparent 1px 3px
     ),
-    linear-gradient(180deg, #fde68a 0%, #d4af37 40%, #8b6914 100%);
-  border: 2px solid #4a3810;
+    linear-gradient(180deg, #fff2cc 0%, #d4af37 40%, #6b490f 100%);
+  border: 2px solid #2a1808;
   box-shadow:
-    inset 0 1px 0 rgba(255, 245, 200, 0.55),
-    inset 0 -2px 4px rgba(80, 50, 10, 0.5),
-    0 3px 0 #2a1808,
-    0 4px 8px rgba(0, 0, 0, 0.7);
-  text-shadow: 0 1px 0 rgba(255, 240, 200, 0.5);
+    inset 0 2px 2px rgba(255, 255, 255, 0.6),
+    inset 0 -3px 6px rgba(80, 50, 10, 0.7),
+    0 4px 0 #2a1808,
+    0 6px 12px rgba(0, 0, 0, 0.8);
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.6);
 }
 
 /* 朱砂红按钮 */
@@ -291,17 +345,17 @@ button,
   background-image:
     repeating-linear-gradient(
       90deg,
-      rgba(0, 0, 0, 0.1) 0 1px,
+      rgba(0, 0, 0, 0.15) 0 1px,
       transparent 1px 3px
     ),
-    linear-gradient(180deg, #a82020 0%, #7a1f1f 50%, #4a0f0f 100%);
-  border: 2px solid #2a0808;
+    linear-gradient(180deg, #c82828 0%, #7a1f1f 50%, #3a0808 100%);
+  border: 2px solid #1a0404;
   box-shadow:
-    inset 0 1px 0 rgba(255, 180, 160, 0.4),
-    inset 0 -2px 4px rgba(0, 0, 0, 0.5),
-    0 3px 0 #1a0404,
-    0 4px 6px rgba(0, 0, 0, 0.6);
-  text-shadow: 1px 1px 0 #000;
+    inset 0 2px 2px rgba(255, 180, 160, 0.5),
+    inset 0 -3px 6px rgba(0, 0, 0, 0.6),
+    0 4px 0 #1a0404,
+    0 6px 10px rgba(0, 0, 0, 0.7);
+  text-shadow: 1px 1px 2px #000;
 }
 
 /* 朱砂印章 */
