@@ -33,6 +33,7 @@ import { RecruitPanel } from './components/RecruitPanel';
 import { Toast } from './components/Toast';
 import { HandEffect, buildEffect, type EffectTrigger } from './components/HandEffect';
 import { GMTool } from './components/GMTool';
+import { TeamTabs } from './components/TeamTabs';
 
 function findCardById(
   hand: Card[],
@@ -49,6 +50,7 @@ export default function App() {
   const state = useGameStore();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [effect, setEffect] = useState<EffectTrigger | null>(null);
+  const [activeTeamIndex, setActiveTeamIndex] = useState<0 | 1>(0);
   // 记录上一次触发过特效的牌型签名，避免重复播放
   const lastEffectSig = useRef<string>('');
 
@@ -246,11 +248,20 @@ export default function App() {
 
           {/* 左主栏 */}
           <div className="col-span-12 lg:col-span-8 space-y-4 sm:space-y-6">
-            <div
-              className={`grid gap-4 ${
-                teamsRequired >= 2 ? 'grid-cols-2' : 'grid-cols-1'
-              }`}
-            >
+            {/* 军团页签（双队列时显示） */}
+            {teamsRequired >= 2 && (
+              <TeamTabs
+                activeTeamIndex={activeTeamIndex}
+                onSwitch={setActiveTeamIndex}
+                team0Power={team0Eval?.power ?? 0}
+                team1Power={team1Eval?.power ?? 0}
+                team0Full={state.teams[0].every((c) => c !== null)}
+                team1Full={state.teams[1].every((c) => c !== null)}
+              />
+            )}
+
+            {/* 当前军团战场 */}
+            {(teamsRequired >= 2 ? activeTeamIndex === 0 : true) && (
               <BattleField3D
                 teamIndex={0}
                 cards={state.teams[0]}
@@ -258,16 +269,16 @@ export default function App() {
                 canRedraw={canRedrawAny}
                 onRedraw={state.redraw}
               />
-              {teamsRequired >= 2 && (
-                <BattleField3D
-                  teamIndex={1}
-                  cards={state.teams[1]}
-                  evalResult={team1Eval}
-                  canRedraw={canRedrawAny}
-                  onRedraw={state.redraw}
-                />
-              )}
-            </div>
+            )}
+            {teamsRequired >= 2 && activeTeamIndex === 1 && (
+              <BattleField3D
+                teamIndex={1}
+                cards={state.teams[1]}
+                evalResult={team1Eval}
+                canRedraw={canRedrawAny}
+                onRedraw={state.redraw}
+              />
+            )}
 
             {/* 操作区 */}
             <div className="flex items-center justify-between gap-3 flex-wrap relative rounded-lg wood-light px-4 py-3 border-4 border-amber-950 shadow-card-deep">

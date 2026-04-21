@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { OrthographicCamera, RoundedBox, Text, Cylinder, Cone, Sphere, Box } from '@react-three/drei';
+import { OrthographicCamera, Text, Cylinder, Plane } from '@react-three/drei';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { AnimatePresence, motion } from 'framer-motion';
 import * as THREE from 'three';
@@ -15,512 +15,357 @@ interface Props {
   onRedraw: (id: string) => void;
 }
 
-/** 阵营 3D 材质配置 */
+/** 阵营配色（更明快，参考古地图战棋） */
 const FACTION_MAT: Record<
   Faction,
   {
-    armor: string;
-    armorAccent: string;
-    cloth: string;
-    tassel: string;      // 缨穗
-    flag: string;
-    metal: string;
-    emissive: string;
-    glow: number;
+    flag: string;       // 旗面主色
+    flagDark: string;
+    pole: string;       // 旗杆色
+    badge: string;      // 武将徽章底色
+    badgeAccent: string;
+    label: string;      // 盾牌横幅
   }
 > = {
   魏: {
-    armor: '#1e3a5f',
-    armorAccent: '#3b82f6',
-    cloth: '#1e40af',
-    tassel: '#dc2626',
-    flag: '#2563eb',
-    metal: '#94a3b8',
-    emissive: '#1e40af',
-    glow: 0.15,
+    flag: '#1e40af',
+    flagDark: '#0a1f4d',
+    pole: '#8b6914',
+    badge: '#1e3a5f',
+    badgeAccent: '#3b82f6',
+    label: '#1e3a5f',
   },
   蜀: {
-    armor: '#7a1f1f',
-    armorAccent: '#ef4444',
-    cloth: '#991b1b',
-    tassel: '#fbbf24',
     flag: '#dc2626',
-    metal: '#d4af37',
-    emissive: '#7a1f1f',
-    glow: 0.25,
+    flagDark: '#7f1d1d',
+    pole: '#8b6914',
+    badge: '#7a1f1f',
+    badgeAccent: '#ef4444',
+    label: '#7a1f1f',
   },
   吴: {
-    armor: '#0f3826',
-    armorAccent: '#10b981',
-    cloth: '#065f46',
-    tassel: '#fbbf24',
     flag: '#059669',
-    metal: '#d4af37',
-    emissive: '#065f46',
-    glow: 0.15,
+    flagDark: '#064e3b',
+    pole: '#8b6914',
+    badge: '#0f3826',
+    badgeAccent: '#10b981',
+    label: '#0f3826',
   },
   群: {
-    armor: '#3d3a2a',
-    armorAccent: '#fbbf24',
-    cloth: '#78350f',
-    tassel: '#dc2626',
     flag: '#b45309',
-    metal: '#d4af37',
-    emissive: '#78350f',
-    glow: 0.2,
+    flagDark: '#78350f',
+    pole: '#8b6914',
+    badge: '#3d3a2a',
+    badgeAccent: '#fbbf24',
+    label: '#3d3a2a',
   },
 };
 
 const SLOTS = 5;
-const SLOT_SPACING = 1.8; // 牌位间距
+// 槽位宽 2.4，高 1.6（梯形近大远小），间距 0.3
+const SLOT_W = 2.4;
+const SLOT_H = 1.6;
+const SLOT_GAP = 0.35;
 
 // ======================================================================
-// 3D 子模型
+// 单面旗子 —— 简化小兵（一根旗杆 + 旗面）
 // ======================================================================
 
-/** 单个 3D 武将小兵模型 */
-function SoldierModel({
+function SingleFlag({
   faction,
-  highlight,
-  index,
+  position,
+  scale,
+  seedIdx,
 }: {
   faction: Faction;
-  highlight: boolean;
-  index: number;
+  position: [number, number, number];
+  scale: number;
+  seedIdx: number;
 }) {
   const m = FACTION_MAT[faction];
-  const groupRef = useRef<THREE.Group>(null);
-  const flagRef = useRef<THREE.Mesh>(null);
-  const tasselRef = useRef<THREE.Group>(null);
-
-  // 待机摇摆 + 旗帜飘动
-  useFrame((state) => {
-    const t = state.clock.getElapsedTime();
-    if (groupRef.current) {
-      groupRef.current.rotation.y = Math.sin(t * 0.8 + index) * 0.05;
-      groupRef.current.position.y = Math.sin(t * 1.2 + index * 0.5) * 0.02;
-    }
-    if (flagRef.current) {
-      flagRef.current.rotation.z = Math.sin(t * 2 + index) * 0.15;
-    }
-    if (tasselRef.current) {
-      tasselRef.current.rotation.x = Math.sin(t * 2.5 + index * 0.3) * 0.2;
-    }
-  });
-
-  return (
-    <group ref={groupRef}>
-      {/* === 底座方砖 === */}
-      <RoundedBox args={[0.65, 0.08, 0.45]} radius={0.03} smoothness={4} position={[0, 0.04, 0]}>
-        <meshStandardMaterial color="#3a2418" roughness={0.8} />
-      </RoundedBox>
-      {/* 底座金边 */}
-      <Box args={[0.68, 0.02, 0.48]} position={[0, 0.01, 0]}>
-        <meshStandardMaterial color={m.metal} metalness={0.8} roughness={0.3} />
-      </Box>
-
-      {/* === 双腿 === */}
-      <Cylinder args={[0.05, 0.06, 0.35, 8]} position={[-0.1, 0.25, 0]}>
-        <meshStandardMaterial color={m.cloth} roughness={0.7} />
-      </Cylinder>
-      <Cylinder args={[0.05, 0.06, 0.35, 8]} position={[0.1, 0.25, 0]}>
-        <meshStandardMaterial color={m.cloth} roughness={0.7} />
-      </Cylinder>
-
-      {/* === 腰带 === */}
-      <Cylinder args={[0.14, 0.14, 0.06, 10]} position={[0, 0.45, 0]}>
-        <meshStandardMaterial color={m.metal} metalness={0.9} roughness={0.2} />
-      </Cylinder>
-
-      {/* === 躯干（铠甲） === */}
-      <RoundedBox
-        args={[0.32, 0.42, 0.2]}
-        radius={0.04}
-        smoothness={4}
-        position={[0, 0.7, 0]}
-      >
-        <meshStandardMaterial
-          color={m.armor}
-          metalness={0.7}
-          roughness={0.35}
-          emissive={m.emissive}
-          emissiveIntensity={highlight ? m.glow + 0.2 : m.glow}
-        />
-      </RoundedBox>
-
-      {/* 护心镜 */}
-      <Cylinder args={[0.09, 0.09, 0.03, 16]} position={[0, 0.72, 0.11]} rotation={[Math.PI / 2, 0, 0]}>
-        <meshStandardMaterial
-          color={m.metal}
-          metalness={1}
-          roughness={0.15}
-          emissive={m.armorAccent}
-          emissiveIntensity={highlight ? 0.4 : 0.15}
-        />
-      </Cylinder>
-
-      {/* === 肩甲 === */}
-      <Sphere args={[0.11, 10, 10]} position={[-0.2, 0.88, 0]} scale={[1, 0.8, 1]}>
-        <meshStandardMaterial color={m.metal} metalness={0.9} roughness={0.25} />
-      </Sphere>
-      <Sphere args={[0.11, 10, 10]} position={[0.2, 0.88, 0]} scale={[1, 0.8, 1]}>
-        <meshStandardMaterial color={m.metal} metalness={0.9} roughness={0.25} />
-      </Sphere>
-
-      {/* === 双臂 === */}
-      <Cylinder
-        args={[0.05, 0.05, 0.32, 8]}
-        position={[-0.22, 0.7, 0]}
-        rotation={[0, 0, 0.15]}
-      >
-        <meshStandardMaterial color={m.armor} roughness={0.5} />
-      </Cylinder>
-      <Cylinder
-        args={[0.05, 0.05, 0.32, 8]}
-        position={[0.22, 0.7, 0]}
-        rotation={[0, 0, -0.15]}
-      >
-        <meshStandardMaterial color={m.armor} roughness={0.5} />
-      </Cylinder>
-
-      {/* === 颈部 === */}
-      <Cylinder args={[0.06, 0.07, 0.08, 8]} position={[0, 0.96, 0]}>
-        <meshStandardMaterial color="#d4a574" roughness={0.7} />
-      </Cylinder>
-
-      {/* === 头部 === */}
-      <Sphere args={[0.11, 12, 12]} position={[0, 1.06, 0]}>
-        <meshStandardMaterial color="#d4a574" roughness={0.6} />
-      </Sphere>
-
-      {/* === 头盔 === */}
-      <Sphere
-        args={[0.13, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2]}
-        position={[0, 1.1, 0]}
-      >
-        <meshStandardMaterial color={m.metal} metalness={0.95} roughness={0.2} />
-      </Sphere>
-
-      {/* 头盔顶钉 */}
-      <Sphere args={[0.03, 8, 8]} position={[0, 1.22, 0]}>
-        <meshStandardMaterial color={m.metal} metalness={1} roughness={0.1} />
-      </Sphere>
-
-      {/* === 红缨（从头盔顶向后飘） === */}
-      <group ref={tasselRef} position={[0, 1.22, 0]}>
-        <Cone
-          args={[0.04, 0.2, 8]}
-          position={[0, 0.08, -0.05]}
-          rotation={[0.3, 0, 0]}
-        >
-          <meshStandardMaterial
-            color={m.tassel}
-            emissive={m.tassel}
-            emissiveIntensity={0.3}
-            roughness={0.6}
-          />
-        </Cone>
-      </group>
-
-      {/* === 长矛（右手持） === */}
-      <group position={[0.28, 0.9, 0]} rotation={[0, 0, -0.1]}>
-        {/* 矛杆 */}
-        <Cylinder args={[0.015, 0.015, 1.4, 8]} position={[0.15, 0.3, 0]} rotation={[0, 0, -0.25]}>
-          <meshStandardMaterial color="#5a3810" roughness={0.9} />
-        </Cylinder>
-        {/* 矛尖 */}
-        <Cone args={[0.03, 0.12, 8]} position={[0.35, 0.95, 0]} rotation={[0, 0, -0.25]}>
-          <meshStandardMaterial color={m.metal} metalness={0.95} roughness={0.2} />
-        </Cone>
-        {/* 矛下红缨 */}
-        <Cone args={[0.04, 0.1, 8]} position={[0.3, 0.82, 0]} rotation={[Math.PI, 0, -0.25]}>
-          <meshStandardMaterial color={m.tassel} roughness={0.7} />
-        </Cone>
-      </group>
-
-      {/* === 小旗帜（左肩后） === */}
-      <group position={[-0.3, 1.0, -0.05]} rotation={[0, 0, 0.15]}>
-        {/* 旗杆 */}
-        <Cylinder args={[0.01, 0.01, 1.1, 6]} position={[0, 0.3, 0]}>
-          <meshStandardMaterial color="#8b6914" metalness={0.6} roughness={0.4} />
-        </Cylinder>
-        {/* 旗面 */}
-        <mesh ref={flagRef} position={[0.15, 0.55, 0]}>
-          <planeGeometry args={[0.3, 0.2]} />
-          <meshStandardMaterial
-            color={m.flag}
-            side={THREE.DoubleSide}
-            emissive={m.flag}
-            emissiveIntensity={0.2}
-            roughness={0.5}
-          />
-        </mesh>
-        {/* 旗杆顶饰 */}
-        <Sphere args={[0.02, 6, 6]} position={[0, 0.85, 0]}>
-          <meshStandardMaterial color={m.metal} metalness={1} roughness={0.1} />
-        </Sphere>
-      </group>
-    </group>
-  );
-}
-
-/** 点将台地板（青石） */
-function PlatformGround() {
-  return (
-    <group>
-      {/* 主平台 */}
-      <RoundedBox args={[12, 0.3, 4]} radius={0.1} position={[0, -0.15, 0]}>
-        <meshStandardMaterial color="#3a2a1c" roughness={0.9} />
-      </RoundedBox>
-
-      {/* 台面金边 */}
-      <Box args={[12.1, 0.02, 4.1]} position={[0, 0.01, 0]}>
-        <meshStandardMaterial color="#8b6914" metalness={0.7} roughness={0.4} />
-      </Box>
-
-      {/* 前阶梯 */}
-      <RoundedBox args={[11, 0.15, 0.6]} radius={0.05} position={[0, -0.35, 2.3]}>
-        <meshStandardMaterial color="#2a1c12" roughness={0.95} />
-      </RoundedBox>
-      <RoundedBox args={[10, 0.15, 0.5]} radius={0.05} position={[0, -0.5, 2.8]}>
-        <meshStandardMaterial color="#1a120a" roughness={0.95} />
-      </RoundedBox>
-
-      {/* 后方点将台基座 */}
-      <RoundedBox args={[6, 1.2, 0.3]} radius={0.1} position={[0, 0.6, -2.2]}>
-        <meshStandardMaterial color="#2a1c12" roughness={0.9} />
-      </RoundedBox>
-
-      {/* 青石地砖纹（用小方块拼接） */}
-      {Array.from({ length: 12 }).map((_, i) =>
-        Array.from({ length: 4 }).map((_, j) => (
-          <Box
-            key={`tile-${i}-${j}`}
-            args={[0.95, 0.005, 0.95]}
-            position={[-5.5 + i * 1.0, 0.008, -1.5 + j * 1.0]}
-          >
-            <meshStandardMaterial
-              color={(i + j) % 2 === 0 ? '#4a3a2a' : '#3a2a1c'}
-              roughness={0.95}
-            />
-          </Box>
-        )),
-      )}
-    </group>
-  );
-}
-
-/** 点将台上的"主帅"大旗 */
-function MainBanner({ teamIndex }: { teamIndex: number }) {
   const flagRef = useRef<THREE.Mesh>(null);
 
   useFrame((state) => {
     if (flagRef.current) {
       const t = state.clock.getElapsedTime();
-      flagRef.current.rotation.y = Math.sin(t * 1.2) * 0.15;
+      flagRef.current.rotation.y = Math.sin(t * 1.5 + seedIdx) * 0.25;
+      flagRef.current.rotation.z = Math.sin(t * 2.2 + seedIdx * 0.7) * 0.08;
     }
   });
 
+  const poleH = 0.7 * scale;
+  const flagW = 0.35 * scale;
+  const flagH = 0.22 * scale;
+
   return (
-    <group position={[teamIndex === 0 ? -4.5 : 4.5, 1.2, -2.2]}>
+    <group position={position} scale={scale}>
       {/* 旗杆 */}
-      <Cylinder args={[0.05, 0.05, 3, 10]} position={[0, 1.5, 0]}>
-        <meshStandardMaterial color="#8b6914" metalness={0.7} roughness={0.4} />
+      <Cylinder args={[0.015, 0.015, poleH, 6]} position={[0, poleH / 2, 0]}>
+        <meshStandardMaterial color={m.pole} roughness={0.7} />
       </Cylinder>
-      {/* 旗杆顶龙头装饰 */}
-      <Cone args={[0.08, 0.2, 6]} position={[0, 3.1, 0]}>
-        <meshStandardMaterial color="#d4af37" metalness={0.95} roughness={0.15} />
-      </Cone>
-      {/* 大旗面 */}
-      <mesh ref={flagRef} position={[0.5, 2.2, 0]}>
-        <planeGeometry args={[1.2, 1.5]} />
+      {/* 旗杆顶饰 */}
+      <mesh position={[0, poleH + 0.02, 0]}>
+        <sphereGeometry args={[0.02, 6, 6]} />
+        <meshStandardMaterial color="#d4af37" metalness={0.9} roughness={0.2} />
+      </mesh>
+      {/* 旗面 */}
+      <mesh
+        ref={flagRef}
+        position={[flagW / 2 + 0.015, poleH - flagH / 2 - 0.05, 0]}
+      >
+        <planeGeometry args={[flagW, flagH, 4, 2]} />
         <meshStandardMaterial
-          color="#7a1f1f"
+          color={m.flag}
           side={THREE.DoubleSide}
-          emissive="#7a1f1f"
-          emissiveIntensity={0.25}
-          roughness={0.5}
+          roughness={0.55}
+          emissive={m.flag}
+          emissiveIntensity={0.12}
         />
       </mesh>
     </group>
   );
 }
 
-/** 点将台上的大鼎 */
-function Cauldron({ position }: { position: [number, number, number] }) {
+// ======================================================================
+// 旗子群 —— 参考图的"兵马"（密集旗阵）
+// ======================================================================
+
+function ArmyFlags({ faction, bounds }: { faction: Faction; bounds: { w: number; h: number } }) {
+  // 在梯形区域内随机排布 7~10 面旗子
+  const flags = useMemo(() => {
+    const list: { x: number; z: number; scale: number; seed: number }[] = [];
+    const count = 9;
+    // 3 排 × 3 列的近梯形分布
+    for (let r = 0; r < 3; r++) {
+      const rowProgress = r / 2; // 0 远 → 1 近
+      const rowW = bounds.w * (0.55 + rowProgress * 0.3); // 远窄近宽
+      const rowZ = bounds.h * (0.3 - rowProgress * 0.55);
+      const perRow = r === 0 ? 2 : r === 1 ? 3 : 4;
+      for (let c = 0; c < perRow; c++) {
+        const colProgress = (perRow as number) === 1 ? 0.5 : c / (perRow - 1);
+        const x = -rowW / 2 + rowW * colProgress;
+        list.push({
+          x: x + (Math.random() - 0.5) * 0.06,
+          z: rowZ + (Math.random() - 0.5) * 0.06,
+          scale: 0.85 + rowProgress * 0.3,
+          seed: list.length * 1.7,
+        });
+      }
+    }
+    return list.slice(0, count);
+  }, [bounds.w, bounds.h]);
+
   return (
-    <group position={position}>
-      {/* 鼎腿 */}
-      {[0, 1, 2].map((i) => {
-        const angle = (i / 3) * Math.PI * 2;
-        return (
-          <Cylinder
-            key={i}
-            args={[0.04, 0.05, 0.3, 6]}
-            position={[Math.cos(angle) * 0.2, 0.15, Math.sin(angle) * 0.2]}
-          >
-            <meshStandardMaterial color="#4a3810" metalness={0.8} roughness={0.4} />
-          </Cylinder>
-        );
-      })}
-      {/* 鼎身 */}
-      <Cylinder args={[0.3, 0.2, 0.4, 16]} position={[0, 0.5, 0]}>
-        <meshStandardMaterial
-          color="#5a3810"
-          metalness={0.85}
-          roughness={0.35}
-          emissive="#d4af37"
-          emissiveIntensity={0.1}
+    <group>
+      {flags.map((f, i) => (
+        <SingleFlag
+          key={i}
+          faction={faction}
+          position={[f.x, 0.02, f.z]}
+          scale={f.scale}
+          seedIdx={f.seed}
         />
-      </Cylinder>
-      {/* 鼎口 */}
-      <Cylinder args={[0.33, 0.3, 0.08, 16]} position={[0, 0.74, 0]}>
-        <meshStandardMaterial color="#8b6914" metalness={0.9} roughness={0.25} />
-      </Cylinder>
-      {/* 火焰 */}
-      <FireFlame position={[0, 0.85, 0]} />
+      ))}
     </group>
   );
 }
 
-/** 火焰特效 */
-function FireFlame({ position }: { position: [number, number, number] }) {
-  const ref = useRef<THREE.Mesh>(null);
-  useFrame((state) => {
-    if (ref.current) {
-      const t = state.clock.getElapsedTime();
-      ref.current.scale.y = 0.8 + Math.sin(t * 8) * 0.2;
-      ref.current.scale.x = 0.9 + Math.sin(t * 6) * 0.1;
-    }
-  });
+// ======================================================================
+// 武将徽章 —— 圆形 3D 头像标牌（左前角）
+// ======================================================================
+
+function CommanderMark({
+  faction,
+  position,
+}: {
+  faction: Faction;
+  position: [number, number, number];
+}) {
+  const m = FACTION_MAT[faction];
+
   return (
-    <mesh ref={ref} position={position}>
-      <coneGeometry args={[0.15, 0.4, 8]} />
-      <meshStandardMaterial
-        color="#fbbf24"
-        emissive="#dc2626"
-        emissiveIntensity={1.2}
-        transparent
-        opacity={0.9}
-      />
-    </mesh>
+    <group position={position} rotation={[-Math.PI / 2.2, 0, 0]}>
+      {/* 圆形头像底盘 */}
+      <mesh position={[0, 0, 0]}>
+        <cylinderGeometry args={[0.28, 0.28, 0.04, 24]} />
+        <meshStandardMaterial color="#d4af37" metalness={0.85} roughness={0.25} />
+      </mesh>
+      {/* 内圈阵营色 */}
+      <mesh position={[0, 0.03, 0]}>
+        <cylinderGeometry args={[0.24, 0.24, 0.02, 24]} />
+        <meshStandardMaterial color={m.badge} roughness={0.5} />
+      </mesh>
+
+      {/* 简化人像（正面对相机，z 轴朝外） */}
+      <group position={[0, 0.06, 0]} rotation={[Math.PI / 2.2, 0, 0]}>
+        {/* 帽子 */}
+        <mesh position={[0, 0.08, 0]}>
+          <coneGeometry args={[0.12, 0.1, 8]} />
+          <meshStandardMaterial color={m.flagDark} roughness={0.6} />
+        </mesh>
+        {/* 头 */}
+        <mesh position={[0, -0.02, 0]}>
+          <sphereGeometry args={[0.09, 12, 12]} />
+          <meshStandardMaterial color="#d4a574" roughness={0.6} />
+        </mesh>
+        {/* 肩 */}
+        <mesh position={[0, -0.16, 0]}>
+          <coneGeometry args={[0.15, 0.14, 8]} />
+          <meshStandardMaterial color={m.flag} roughness={0.5} />
+        </mesh>
+      </group>
+    </group>
   );
 }
 
-/** 3D 阵位（槽位） */
-function SlotTileMesh({
-  slotIndex,
+// ======================================================================
+// 梯形牌位
+// ======================================================================
+
+function SlotTile({
   x,
+  z,
   empty,
   isOver,
   highlight,
 }: {
-  slotIndex: number;
   x: number;
+  z: number;
   empty: boolean;
   isOver: boolean;
   highlight: boolean;
 }) {
+  // 梯形几何：近大远小
+  const shape = useMemo(() => {
+    const s = new THREE.Shape();
+    const nearW = SLOT_W * 0.5;
+    const farW = SLOT_W * 0.38;
+    const halfH = SLOT_H / 2;
+    s.moveTo(-nearW, halfH);
+    s.lineTo(nearW, halfH);
+    s.lineTo(farW, -halfH);
+    s.lineTo(-farW, -halfH);
+    s.closePath();
+    return s;
+  }, []);
+
+  const borderColor = isOver ? '#fde68a' : highlight ? '#d4af37' : '#8b6914';
+
   return (
-    <group position={[x, 0.05, 0]}>
-      {/* 青铜底座 */}
-      <RoundedBox args={[1.5, 0.08, 1.2]} radius={0.04} position={[0, 0, 0]}>
+    <group position={[x, 0.001, z]} rotation={[-Math.PI / 2, 0, 0]}>
+      {/* 牌位内部（半透明米黄） */}
+      <mesh>
+        <shapeGeometry args={[shape]} />
         <meshStandardMaterial
-          color={isOver ? '#d4af37' : empty ? '#1a1008' : '#2a1c12'}
-          metalness={0.3}
-          roughness={0.7}
-          emissive={isOver ? '#d4af37' : highlight ? '#d4af37' : '#000'}
-          emissiveIntensity={isOver ? 0.5 : highlight ? 0.15 : 0}
+          color={isOver ? '#fde68a' : '#e8dcc0'}
+          transparent
+          opacity={isOver ? 0.35 : empty ? 0.15 : 0.22}
+          roughness={0.9}
         />
-      </RoundedBox>
-      {/* 金边框 */}
-      <Box args={[1.52, 0.01, 1.22]} position={[0, 0.045, 0]}>
-        <meshStandardMaterial
-          color={isOver ? '#fde68a' : '#8b6914'}
-          metalness={0.95}
-          roughness={0.25}
-          emissive={isOver ? '#fde68a' : '#000'}
-          emissiveIntensity={isOver ? 0.4 : 0}
-        />
-      </Box>
+      </mesh>
+      {/* 金色描边（用 lineSegments） */}
+      <lineSegments>
+        <edgesGeometry args={[new THREE.ShapeGeometry(shape)]} />
+        <lineBasicMaterial color={borderColor} linewidth={2} transparent opacity={0.9} />
+      </lineSegments>
+      {/* 内层金边 */}
+      <lineSegments position={[0, 0, 0.002]} scale={[0.94, 0.88, 1]}>
+        <edgesGeometry args={[new THREE.ShapeGeometry(shape)]} />
+        <lineBasicMaterial color={borderColor} linewidth={1} transparent opacity={0.5} />
+      </lineSegments>
       {empty && (
         <Text
-          position={[0, 0.06, 0]}
-          rotation={[-Math.PI / 2, 0, 0]}
-          fontSize={0.18}
+          position={[0, 0, 0.003]}
+          fontSize={0.16}
           color={isOver ? '#fde68a' : '#8b6914'}
           anchorX="center"
           anchorY="middle"
+          fontStyle="italic"
         >
-          {isOver ? `降 · ${slotIndex + 1}` : `空 ${slotIndex + 1}`}
+          {isOver ? `降 · ${Math.floor(Math.random() * 5) + 1}` : '空位'}
         </Text>
       )}
     </group>
   );
 }
 
-/** 战力显示浮标（3D 位置，HTML 渲染） */
-function PowerTag({ x, value, faction }: { x: number; value: number; faction: Faction }) {
-  const m = FACTION_MAT[faction];
+// ======================================================================
+// 水墨地图底
+// ======================================================================
+
+function MapGround() {
+  // 用一张过程生成的 canvas 贴图做水墨地图
+  const texture = useMemo(() => {
+    const c = document.createElement('canvas');
+    c.width = 512;
+    c.height = 512;
+    const ctx = c.getContext('2d')!;
+    // 羊皮纸底色
+    const grad = ctx.createRadialGradient(256, 256, 50, 256, 256, 400);
+    grad.addColorStop(0, '#e8dcc0');
+    grad.addColorStop(0.5, '#d4b483');
+    grad.addColorStop(1, '#a89670');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 512, 512);
+
+    // 水墨河流（浅灰曲线）
+    ctx.strokeStyle = 'rgba(80, 60, 40, 0.22)';
+    ctx.lineWidth = 3;
+    for (let i = 0; i < 5; i++) {
+      ctx.beginPath();
+      const y0 = 60 + i * 90;
+      ctx.moveTo(0, y0);
+      for (let x = 0; x <= 512; x += 40) {
+        const y = y0 + Math.sin(x * 0.015 + i) * 20;
+        ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+    }
+
+    // 远山轮廓（浅灰三角）
+    ctx.fillStyle = 'rgba(90, 70, 50, 0.18)';
+    for (let i = 0; i < 8; i++) {
+      const cx = i * 70 + 20;
+      const cy = 40 + (i % 3) * 10;
+      ctx.beginPath();
+      ctx.moveTo(cx - 30, cy + 20);
+      ctx.lineTo(cx, cy);
+      ctx.lineTo(cx + 15, cy + 8);
+      ctx.lineTo(cx + 35, cy);
+      ctx.lineTo(cx + 55, cy + 20);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // 随机墨点
+    ctx.fillStyle = 'rgba(60, 40, 20, 0.15)';
+    for (let i = 0; i < 80; i++) {
+      const x = Math.random() * 512;
+      const y = Math.random() * 512;
+      ctx.beginPath();
+      ctx.arc(x, y, Math.random() * 3 + 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    const tex = new THREE.CanvasTexture(c);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    return tex;
+  }, []);
+
   return (
-    <group position={[x, 0.12, 0.55]}>
-      <RoundedBox args={[0.45, 0.2, 0.05]} radius={0.02} position={[0, 0.1, 0]}>
-        <meshStandardMaterial color="#1a0f08" roughness={0.7} />
-      </RoundedBox>
-      <Box args={[0.47, 0.005, 0.052]} position={[0, 0.21, 0]}>
-        <meshStandardMaterial color={m.metal} metalness={0.9} roughness={0.3} />
-      </Box>
-      <Text
-        position={[0, 0.1, 0.03]}
-        fontSize={0.13}
-        color="#fde68a"
-        anchorX="center"
-        anchorY="middle"
-        outlineColor="#000"
-        outlineWidth={0.005}
-      >
-        {value}
-      </Text>
-    </group>
+    <Plane args={[20, 12]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+      <meshStandardMaterial
+        map={texture}
+        roughness={0.95}
+        metalness={0}
+        color="#e8dcc0"
+      />
+    </Plane>
   );
 }
 
-/** 阵营徽章 3D 盾牌（立在槽位前） */
-function FactionShield({ x, faction }: { x: number; faction: Faction }) {
-  const m = FACTION_MAT[faction];
-  return (
-    <group position={[x - 0.55, 0.3, 0.55]}>
-      {/* 盾身 */}
-      <RoundedBox args={[0.28, 0.36, 0.04]} radius={0.03} position={[0, 0, 0]}>
-        <meshStandardMaterial
-          color={m.armor}
-          metalness={0.6}
-          roughness={0.4}
-          emissive={m.emissive}
-          emissiveIntensity={0.2}
-        />
-      </RoundedBox>
-      {/* 金边 */}
-      <Box args={[0.3, 0.38, 0.035]} position={[0, 0, -0.005]}>
-        <meshStandardMaterial color={m.metal} metalness={0.9} roughness={0.25} />
-      </Box>
-      {/* 阵营字 */}
-      <Text
-        position={[0, 0, 0.025]}
-        fontSize={0.18}
-        color="#fff"
-        anchorX="center"
-        anchorY="middle"
-        outlineColor={m.armor}
-        outlineWidth={0.008}
-      >
-        {faction}
-      </Text>
-    </group>
-  );
-}
+// ======================================================================
+// 3D 场景主体
+// ======================================================================
 
-/** 完整 3D 场景 */
 function Scene({
   cards,
   hovered,
@@ -533,85 +378,102 @@ function Scene({
   const { camera } = useThree();
 
   useEffect(() => {
-    camera.position.set(0, 3.5, 4.5);
-    camera.lookAt(0, 0.5, 0);
+    camera.position.set(0, 4.5, 4);
+    camera.lookAt(0, 0, 0);
   }, [camera]);
 
-  // 槽位 X 坐标
-  const xs = useMemo(
-    () => Array.from({ length: SLOTS }, (_, i) => (i - (SLOTS - 1) / 2) * SLOT_SPACING),
-    [],
-  );
+  // 5 槽位布局：2 行（上 2 下 3 或参考图的 1 行 5 列）
+  // 参考图是 2×3 格子。我们用 2 行：
+  //   上排 2 位（z = -0.9）
+  //   下排 3 位（z = +0.9）
+  // 但 PRD 要求 5 槽。用 1 行 5 列斜摆更贴近参考图的横向感
+  const xs = useMemo(() => {
+    return Array.from({ length: SLOTS }, (_, i) => {
+      const step = SLOT_W * 0.55 + SLOT_GAP;
+      return (i - (SLOTS - 1) / 2) * step;
+    });
+  }, []);
 
   return (
     <>
-      {/* === 灯光 === */}
-      <ambientLight intensity={0.5} color="#ffd28c" />
+      {/* 灯光 */}
+      <ambientLight intensity={0.85} color="#fff5e0" />
       <directionalLight
-        position={[5, 8, 5]}
-        intensity={1.2}
+        position={[3, 6, 3]}
+        intensity={0.6}
         color="#fff2cc"
-        castShadow
       />
-      <pointLight position={[0, 3, 2]} intensity={0.6} color="#fbbf24" distance={10} />
-      {/* 朱砂氛围光 */}
-      <pointLight position={[-4, 2, -2]} intensity={0.4} color="#dc2626" distance={6} />
-      <pointLight position={[4, 2, -2]} intensity={0.4} color="#dc2626" distance={6} />
+      <directionalLight position={[-3, 4, 2]} intensity={0.3} color="#e8dcc0" />
 
-      {/* === 天穹远景雾 === */}
-      <fog attach="fog" args={['#2a1810', 5, 18]} />
+      {/* 水墨地图 */}
+      <MapGround />
 
-      {/* === 点将台地面 === */}
-      <PlatformGround />
-
-      {/* === 主帅旗 === */}
-      <MainBanner teamIndex={0} />
-
-      {/* === 两侧大鼎 === */}
-      <Cauldron position={[-3.2, 0, -1.8]} />
-      <Cauldron position={[3.2, 0, -1.8]} />
-
-      {/* === 5 个槽位 === */}
+      {/* 5 个槽位 */}
       {xs.map((x, i) => (
-        <SlotTileMesh
+        <SlotTile
           key={i}
-          slotIndex={i}
           x={x}
+          z={0}
           empty={!cards[i]}
           isOver={hovered === i}
           highlight={highlight}
         />
       ))}
 
-      {/* === 武将小兵 === */}
+      {/* 旗子兵阵 */}
       {cards.map((c, i) =>
         c ? (
-          <group key={c.id} position={[xs[i], 0.1, -0.1]}>
-            <SoldierModel faction={c.faction} highlight={highlight} index={i} />
+          <group key={c.id} position={[xs[i], 0, 0]}>
+            <ArmyFlags faction={c.faction} bounds={{ w: SLOT_W * 0.7, h: SLOT_H }} />
           </group>
         ) : null,
       )}
 
-      {/* === 阵营盾牌 === */}
-      {cards.map((c, i) =>
-        c ? <FactionShield key={`s-${c.id}`} x={xs[i]} faction={c.faction} /> : null,
-      )}
-
-      {/* === 战力数字 === */}
+      {/* 武将圆徽章（左前角） */}
       {cards.map((c, i) =>
         c ? (
-          <PowerTag key={`p-${c.id}`} x={xs[i]} value={c.pointValue} faction={c.faction} />
+          <CommanderMark
+            key={`c-${c.id}`}
+            faction={c.faction}
+            position={[xs[i] - SLOT_W * 0.28, 0.02, SLOT_H * 0.48]}
+          />
+        ) : null,
+      )}
+
+      {/* 战力数字（悬浮在牌位上方） */}
+      {cards.map((c, i) =>
+        c ? (
+          <group key={`p-${c.id}`} position={[xs[i] + SLOT_W * 0.22, 0.02, SLOT_H * 0.48]} rotation={[-Math.PI / 2.2, 0, 0]}>
+            <mesh position={[0, 0, 0]}>
+              <planeGeometry args={[0.45, 0.22]} />
+              <meshStandardMaterial color="#1a0f08" />
+            </mesh>
+            <mesh position={[0, 0, 0.001]}>
+              <planeGeometry args={[0.47, 0.24]} />
+              <meshBasicMaterial color="#d4af37" transparent opacity={0.35} />
+            </mesh>
+            <Text
+              position={[0, 0, 0.003]}
+              fontSize={0.13}
+              color="#fde68a"
+              anchorX="center"
+              anchorY="middle"
+              outlineColor="#000"
+              outlineWidth={0.006}
+            >
+              {c.pointValue}
+            </Text>
+          </group>
         ) : null,
       )}
     </>
   );
 }
 
-/**
- * 主组件 —— Canvas 外层 + HTML 叠加交互层
- * 交互：用透明 HTML grid 覆盖在 Canvas 上，分成 5 个 droppable/draggable 槽位区
- * 这样保留 dnd-kit 的完整交互，3D 视觉只是"显示层"
- */
+// ======================================================================
+// 主组件（带交互叠层）
+// ======================================================================
+
 export function BattleField3D({
   teamIndex,
   cards,
@@ -728,21 +590,13 @@ export function BattleField3D({
             <span className="text-emerald-300 tabular-nums">{evalResult.rankType.score}</span>
             <span className="text-amber-200/50 text-base">+</span>
             <span
-              className={[
-                'tabular-nums',
-                evalResult.isFlush ? 'text-gold-grad' : 'text-amber-200/40',
-              ].join(' ')}
+              className={['tabular-nums', evalResult.isFlush ? 'text-gold-grad' : 'text-amber-200/40'].join(' ')}
             >
               {evalResult.suitBonus}
             </span>
             <span className="text-amber-200/50 text-base">)</span>
             <span className="text-amber-200/50 text-base">=</span>
-            <span
-              className={[
-                'tabular-nums',
-                evalResult.capped ? 'text-red-400 line-through' : 'text-gold-grad',
-              ].join(' ')}
-            >
+            <span className={['tabular-nums', evalResult.capped ? 'text-red-400 line-through' : 'text-gold-grad'].join(' ')}>
               {evalResult.rawPower}
             </span>
             {evalResult.capped && (
@@ -758,27 +612,22 @@ export function BattleField3D({
         </motion.div>
       )}
 
-      {/* 3D Canvas + HTML 拖拽叠层 */}
-      <div className="relative w-full" style={{ aspectRatio: '16/9', minHeight: 220 }}>
-        {/* Three.js 3D 场景 */}
+      {/* 3D Canvas + HTML 交互叠层 */}
+      <div className="relative w-full" style={{ aspectRatio: '16 / 7', minHeight: 200 }}>
         <div className="absolute inset-0 rounded-md overflow-hidden">
           <Canvas
-            shadows
             dpr={[1, 2]}
             gl={{
               antialias: true,
               toneMapping: THREE.ACESFilmicToneMapping,
               outputColorSpace: THREE.SRGBColorSpace,
             }}
-            style={{
-              background:
-                'linear-gradient(180deg, #3a1f12 0%, #1a0f08 50%, #0a0502 100%)',
-            }}
+            style={{ background: 'transparent' }}
           >
             <OrthographicCamera
               makeDefault
-              position={[0, 3.5, 4.5]}
-              zoom={70}
+              position={[0, 4.5, 4]}
+              zoom={90}
               near={0.1}
               far={100}
             />
@@ -786,15 +635,15 @@ export function BattleField3D({
           </Canvas>
         </div>
 
-        {/* HTML 拖拽叠层 —— 5 个透明区覆盖在 3D 上 */}
-        <div className="absolute inset-0 grid grid-cols-5 gap-0 p-2 pointer-events-none">
+        {/* HTML 拖拽叠层 */}
+        <div className="absolute inset-0 grid grid-cols-5 gap-0 pointer-events-none">
           {cards.map((c, i) => (
             <SlotInteractionLayer
               key={i}
               teamIndex={teamIndex}
               slotIndex={i}
               card={c}
-              onHoverChange={(hov) => setHovered(hov ? i : hovered === i ? null : hovered)}
+              onHoverChange={(h) => setHovered((prev) => (h ? i : prev === i ? null : prev))}
             />
           ))}
         </div>
@@ -803,7 +652,10 @@ export function BattleField3D({
   );
 }
 
-/** 单个槽位的 HTML 交互层（透明，负责拖拽 + 悬停） */
+// ======================================================================
+// 交互层（HTML 叠加）
+// ======================================================================
+
 function SlotInteractionLayer({
   teamIndex,
   slotIndex,
@@ -826,18 +678,12 @@ function SlotInteractionLayer({
 
   return (
     <div ref={setDropRef} className="relative h-full pointer-events-auto">
-      {card && (
-        <DraggableOverlay
-          card={card}
-          slotIndex={slotIndex}
-        />
-      )}
+      {card && <DraggableOverlay card={card} />}
     </div>
   );
 }
 
-/** 已上阵武将的拖拽热区（透明，只收触发事件） */
-function DraggableOverlay({ card }: { card: Card; slotIndex: number }) {
+function DraggableOverlay({ card }: { card: Card }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: card.id,
     data: { card },
