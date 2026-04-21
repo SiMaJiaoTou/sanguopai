@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useDroppable } from '@dnd-kit/core';
+import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { Card, EvaluateResult, Faction } from '../types';
 import { POWER_CAP } from '../evaluate';
@@ -13,278 +13,550 @@ interface Props {
 }
 
 /**
- * 阵营配色 (3D 小兵专用)
- * 包含主体色、高光、阴影、旗面、饰带
+ * 阵营 3D 调色板 —— 精细化版
+ *  含 12 色梯度（躯干/铠甲/缨穗/旗面/金属等）
  */
 const FACTION_3D: Record<
   Faction,
   {
-    primary: string;    // 基座主色
-    primaryDark: string;
-    primaryLight: string;
-    flag: string;       // 旗帜主色
+    armorLight: string;
+    armor: string;
+    armorDark: string;
+    armorEdge: string;
+    flag: string;
     flagDark: string;
-    flagEdge: string;   // 旗帜描边
+    flagLight: string;
+    tassel: string;      // 缨穗 / 红缨
+    tasselDark: string;
+    metal: string;       // 金属件（肩甲/头盔）
+    metalDark: string;
     text: string;
-    glow: string;       // 发光色
-    char: string;       // 书法字颜色
+    glow: string;
+    char: string;
+    skin: string;        // 面部（简化为一个色块）
   }
 > = {
   魏: {
-    primary: '#1e3a5f',
-    primaryDark: '#0f1e33',
-    primaryLight: '#3a6ba3',
+    armorLight: '#3a6ba3',
+    armor: '#1e3a5f',
+    armorDark: '#0f1e33',
+    armorEdge: '#60a5fa',
     flag: '#1e40af',
     flagDark: '#0a1f4d',
-    flagEdge: '#60a5fa',
+    flagLight: '#3b82f6',
+    tassel: '#dc2626',
+    tasselDark: '#7f1d1d',
+    metal: '#cbd5e1',
+    metalDark: '#64748b',
     text: '#dbeafe',
-    glow: 'rgba(59, 130, 246, 0.6)',
+    glow: 'rgba(59, 130, 246, 0.7)',
     char: '#bfdbfe',
+    skin: '#d4a574',
   },
   蜀: {
-    primary: '#5a1818',
-    primaryDark: '#2a0808',
-    primaryLight: '#a83838',
+    armorLight: '#a83838',
+    armor: '#7a1f1f',
+    armorDark: '#3a0808',
+    armorEdge: '#fb7185',
     flag: '#991b1b',
     flagDark: '#450a0a',
-    flagEdge: '#fb7185',
+    flagLight: '#dc2626',
+    tassel: '#fbbf24',
+    tasselDark: '#92400e',
+    metal: '#d4af37',
+    metalDark: '#78350f',
     text: '#fee2e2',
-    glow: 'rgba(239, 68, 68, 0.6)',
+    glow: 'rgba(239, 68, 68, 0.7)',
     char: '#fecaca',
+    skin: '#d4a574',
   },
   吴: {
-    primary: '#0f3826',
-    primaryDark: '#04180f',
-    primaryLight: '#2d6b4e',
+    armorLight: '#2d6b4e',
+    armor: '#0f3826',
+    armorDark: '#04180f',
+    armorEdge: '#34d399',
     flag: '#065f46',
     flagDark: '#022c22',
-    flagEdge: '#34d399',
+    flagLight: '#10b981',
+    tassel: '#fbbf24',
+    tasselDark: '#92400e',
+    metal: '#d4af37',
+    metalDark: '#78350f',
     text: '#d1fae5',
-    glow: 'rgba(16, 185, 129, 0.6)',
+    glow: 'rgba(16, 185, 129, 0.7)',
     char: '#a7f3d0',
+    skin: '#d4a574',
   },
   群: {
-    primary: '#3d3a2a',
-    primaryDark: '#1a1810',
-    primaryLight: '#6b6448',
+    armorLight: '#6b6448',
+    armor: '#3d3a2a',
+    armorDark: '#1a1810',
+    armorEdge: '#fbbf24',
     flag: '#78350f',
     flagDark: '#3a1a05',
-    flagEdge: '#fbbf24',
+    flagLight: '#d97706',
+    tassel: '#dc2626',
+    tasselDark: '#7f1d1d',
+    metal: '#d4af37',
+    metalDark: '#78350f',
     text: '#fef3c7',
-    glow: 'rgba(251, 191, 36, 0.6)',
+    glow: 'rgba(251, 191, 36, 0.7)',
     char: '#fde68a',
+    skin: '#d4a574',
   },
 };
 
 const SLOTS = 5;
-const MIN_W = 60;
+const MIN_W = 64;
 const MAX_W = 110;
-const GAP = 12;
+const GAP = 10;
 
-/** 单兵 3D 模型 —— 梯形底座 + 立起旗牌 */
+/**
+ * 小兵 3D 模型（精细化）
+ * 组成（从上到下）：
+ *   - 长矛/战旗（右侧斜插）
+ *   - 头盔 + 红缨
+ *   - 面部
+ *   - 肩甲
+ *   - 铠甲胸片（显示阵营字 + 点数）
+ *   - 腰带（显示武将名）
+ *   - 梯形基座（显示战力数字）
+ */
 function Soldier({
   card,
   width,
   index,
   highlight,
-  onDoubleClick,
 }: {
   card: Card;
   width: number;
   index: number;
   highlight: boolean;
-  onDoubleClick?: () => void;
 }) {
   const t = FACTION_3D[card.faction];
-  const flagW = width * 0.85;
-  const flagH = width * 1.15;
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: card.id,
+    data: { card },
+  });
+
+  const bodyW = width * 0.85;
+  const bodyH = width * 1.45;
   const baseW = width;
-  const baseH = width * 0.38;
+  const baseH = width * 0.35;
+  const totalH = bodyH + baseH;
+
+  const dragStyle: React.CSSProperties = transform
+    ? {
+        transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${isDragging ? 1.1 : 1})`,
+        zIndex: isDragging ? 50 : 'auto',
+      }
+    : {};
 
   return (
     <motion.div
-      initial={{ y: 60, opacity: 0, rotateX: 90 }}
-      animate={{ y: 0, opacity: 1, rotateX: 0 }}
+      ref={setNodeRef}
+      initial={{ y: 60, opacity: 0, scaleY: 0.3 }}
+      animate={{ y: 0, opacity: 1, scaleY: 1 }}
       exit={{ y: -30, opacity: 0, scale: 0.7 }}
       transition={{
         type: 'spring',
-        stiffness: 260,
-        damping: 20,
-        delay: index * 0.05,
+        stiffness: 220,
+        damping: 18,
+        delay: index * 0.06,
       }}
-      onDoubleClick={onDoubleClick}
       style={{
         width: baseW,
-        height: flagH + baseH + 8,
-        transformStyle: 'preserve-3d',
+        height: totalH,
+        ...dragStyle,
+        touchAction: 'none',
+        cursor: isDragging ? 'grabbing' : 'grab',
+        opacity: isDragging ? 0.9 : 1,
+        filter: isDragging ? `drop-shadow(0 8px 12px ${t.glow})` : undefined,
       }}
       className="relative flex flex-col items-center justify-end select-none"
+      {...listeners}
+      {...attributes}
     >
-      {/* 飘动旗帜动画 */}
+      {/* =========== 主体（上半身） =========== */}
       <motion.div
-        animate={{
-          rotateY: [-3, 3, -3],
-          rotateZ: [-0.5, 0.5, -0.5],
-        }}
+        animate={{ rotate: [-1.2, 1.2, -1.2] }}
         transition={{
-          duration: 3 + index * 0.2,
+          duration: 3 + index * 0.15,
           repeat: Infinity,
           ease: 'easeInOut',
         }}
         style={{
-          width: flagW,
-          height: flagH,
-          transformStyle: 'preserve-3d',
+          width: bodyW,
+          height: bodyH,
           transformOrigin: 'bottom center',
         }}
         className="relative"
       >
-        {/* 旗杆 */}
+        {/* —— 长矛（右后） —— */}
         <div
-          className="absolute left-1/2 top-0 bottom-0"
+          className="absolute"
           style={{
+            right: -4,
+            top: -10,
             width: 3,
-            transform: 'translateX(-50%) translateZ(1px)',
+            height: bodyH * 1.1,
+            transform: 'rotate(12deg)',
             background:
-              'linear-gradient(180deg, #8b6914 0%, #d4af37 30%, #5a3810 100%)',
-            boxShadow: '0 0 3px rgba(0,0,0,0.6), inset -1px 0 0 rgba(0,0,0,0.4)',
+              'linear-gradient(180deg, #a8753a 0%, #5a3810 50%, #2a1608 100%)',
+            boxShadow: '1px 0 2px rgba(0,0,0,0.6)',
+            borderRadius: 1,
           }}
         />
-        {/* 旗杆顶饰 */}
+        {/* 矛尖 */}
         <div
-          className="absolute left-1/2"
+          className="absolute"
           style={{
-            top: -6,
-            width: 8,
-            height: 8,
-            borderRadius: '50%',
-            transform: 'translateX(-50%) translateZ(2px)',
-            background:
-              'radial-gradient(circle at 30% 30%, #fde68a 0%, #d4af37 50%, #5a3810 100%)',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.8)',
+            right: -8,
+            top: -14,
+            width: 0,
+            height: 0,
+            transform: 'rotate(12deg)',
+            borderLeft: '5px solid transparent',
+            borderRight: '5px solid transparent',
+            borderBottom: `14px solid ${t.metal}`,
+            filter: `drop-shadow(0 0 3px ${t.glow})`,
+          }}
+        />
+        {/* 矛下红缨 */}
+        <div
+          className="absolute"
+          style={{
+            right: -2,
+            top: 12,
+            width: 6,
+            height: 10,
+            transform: 'rotate(12deg)',
+            background: `linear-gradient(180deg, ${t.tassel} 0%, ${t.tasselDark} 100%)`,
+            borderRadius: '50% 50% 20% 20% / 30% 30% 70% 70%',
+            boxShadow: `0 0 4px ${t.tassel}`,
           }}
         />
 
-        {/* 旗面 */}
+        {/* —— 小战旗（左后） —— */}
         <div
-          className="absolute rounded-sm"
+          className="absolute"
           style={{
-            top: 3,
-            left: '15%',
-            right: 0,
-            bottom: 4,
-            background: `
-              linear-gradient(180deg, ${t.primaryLight} 0%, ${t.flag} 40%, ${t.flagDark} 100%),
-              repeating-linear-gradient(0deg, rgba(0,0,0,0.08) 0 2px, transparent 2px 4px)
-            `,
-            backgroundBlendMode: 'multiply',
-            border: `2px solid ${t.flagDark}`,
-            boxShadow: highlight
-              ? `inset 0 2px 3px rgba(255,255,255,0.3), inset 0 -3px 5px rgba(0,0,0,0.5), 0 0 12px ${t.glow}, 3px 3px 6px rgba(0,0,0,0.7)`
-              : `inset 0 2px 3px rgba(255,255,255,0.25), inset 0 -3px 5px rgba(0,0,0,0.5), 3px 3px 6px rgba(0,0,0,0.7)`,
-            transform: 'translateZ(2px)',
+            left: -2,
+            top: -6,
+            width: 2.5,
+            height: bodyH * 0.8,
+            transform: 'rotate(-8deg)',
+            background:
+              'linear-gradient(180deg, #d4af37 0%, #5a3810 100%)',
+            boxShadow: '1px 0 2px rgba(0,0,0,0.6)',
+          }}
+        />
+        <motion.div
+          animate={{ skewY: [-2, 2, -2] }}
+          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute"
+          style={{
+            left: 0,
+            top: -4,
+            width: width * 0.32,
+            height: width * 0.22,
+            transform: 'rotate(-8deg)',
+            transformOrigin: 'left top',
+            background: `linear-gradient(90deg, ${t.flagDark} 0%, ${t.flag} 50%, ${t.flagLight} 100%)`,
+            clipPath: 'polygon(0 0, 100% 0, 85% 50%, 100% 100%, 0 100%)',
+            boxShadow: `inset 0 0 4px rgba(0,0,0,0.5), 0 2px 3px rgba(0,0,0,0.6)`,
+            border: `1px solid ${t.flagDark}`,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: width * 0.16,
+            color: t.char,
+            fontWeight: 900,
+            fontFamily: 'STKaiti, KaiTi, serif',
+            textShadow: `0 0 3px ${t.glow}, 1px 1px 0 ${t.flagDark}`,
           }}
         >
-          {/* 旗面金边装饰 */}
+          {card.faction}
+        </motion.div>
+
+        {/* =========== 头盔区域 =========== */}
+        <div
+          className="absolute left-1/2"
+          style={{
+            top: 0,
+            width: width * 0.5,
+            height: width * 0.45,
+            transform: 'translateX(-50%)',
+          }}
+        >
+          {/* 头盔主体（半球状） */}
           <div
-            className="absolute inset-1 rounded-sm pointer-events-none"
+            className="absolute left-0 right-0"
             style={{
-              border: `1px solid ${t.flagEdge}66`,
-              boxShadow: `inset 0 0 4px ${t.glow}`,
+              top: width * 0.08,
+              height: width * 0.3,
+              background: `
+                radial-gradient(ellipse at 35% 30%, ${t.metal} 0%, ${t.armor} 60%, ${t.armorDark} 100%)
+              `,
+              borderRadius: '50% 50% 30% 30% / 70% 70% 30% 30%',
+              border: `1.5px solid ${t.armorDark}`,
+              boxShadow: `
+                inset 1px 1px 2px rgba(255,255,255,0.3),
+                inset -2px -2px 3px rgba(0,0,0,0.5),
+                0 2px 3px rgba(0,0,0,0.6)
+              `,
             }}
           />
-          {/* 阵营汉字 (大) */}
+          {/* 头盔顶饰（金属钉） */}
           <div
-            className="absolute top-1 left-0 right-0 text-center font-kai font-black"
+            className="absolute left-1/2"
             style={{
-              fontSize: width * 0.32,
-              color: t.char,
-              textShadow: `
-                0 0 4px ${t.glow},
-                -1px -1px 0 ${t.flagDark},
-                1px -1px 0 ${t.flagDark},
-                -1px 1px 0 ${t.flagDark},
-                1px 1px 0 ${t.flagDark}
-              `,
-              lineHeight: 1,
+              top: width * 0.03,
+              width: width * 0.1,
+              height: width * 0.1,
+              transform: 'translateX(-50%)',
+              background: `radial-gradient(circle at 30% 30%, ${t.metal} 0%, ${t.metalDark} 70%, #000 100%)`,
+              borderRadius: '50%',
+              boxShadow: `0 0 4px ${t.glow}`,
             }}
-          >
-            {card.faction}
-          </div>
-          {/* 点数 */}
-          <div
-            className="absolute top-1/3 left-0 right-0 text-center font-kai font-black"
+          />
+          {/* 红缨（从头盔顶向后飘） */}
+          <motion.div
+            animate={{ skewX: [-3, 3, -3], scaleY: [0.95, 1.05, 0.95] }}
+            transition={{ duration: 2 + index * 0.1, repeat: Infinity, ease: 'easeInOut' }}
+            className="absolute left-1/2"
             style={{
-              fontSize: width * 0.22,
-              color: t.flagEdge,
-              textShadow: `
-                0 0 6px ${t.glow},
-                1px 1px 0 ${t.flagDark},
-                -1px -1px 0 ${t.flagDark}
+              top: -width * 0.1,
+              width: width * 0.18,
+              height: width * 0.22,
+              transform: 'translateX(-50%)',
+              background: `
+                linear-gradient(180deg,
+                  ${t.tassel} 0%,
+                  ${t.tasselDark} 100%)
               `,
-              lineHeight: 1,
+              borderRadius: '50% 50% 20% 20% / 60% 60% 40% 40%',
+              boxShadow: `0 0 6px ${t.tassel}, inset 0 -2px 3px rgba(0,0,0,0.4)`,
+              filter: 'blur(0.3px)',
+            }}
+          />
+          {/* 头盔前额护片（点数 / 等级徽章） */}
+          <div
+            className="absolute left-1/2 font-kai font-black"
+            style={{
+              top: width * 0.15,
+              width: width * 0.24,
+              height: width * 0.14,
+              transform: 'translateX(-50%)',
+              background: `linear-gradient(180deg, ${t.metal} 0%, ${t.metalDark} 100%)`,
+              border: `1px solid ${t.armorDark}`,
+              borderRadius: 3,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: width * 0.12,
+              color: t.armorDark,
+              boxShadow: 'inset 0 1px 1px rgba(255,255,255,0.4), 0 1px 2px rgba(0,0,0,0.5)',
+              textShadow: '1px 1px 0 rgba(255,255,255,0.3)',
             }}
           >
             {card.pointLabel}
           </div>
-          {/* 武将名 (书法小字) */}
+        </div>
+
+        {/* =========== 面部 =========== */}
+        <div
+          className="absolute left-1/2"
+          style={{
+            top: width * 0.42,
+            width: width * 0.28,
+            height: width * 0.18,
+            transform: 'translateX(-50%)',
+            background: `radial-gradient(ellipse at 40% 40%, ${t.skin} 0%, #8b6040 100%)`,
+            borderRadius: '50% 50% 40% 40% / 60% 60% 40% 40%',
+            boxShadow: 'inset 0 -2px 3px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.3)',
+          }}
+        >
+          {/* 眼睛（两点） */}
           <div
-            className="absolute bottom-1 left-0 right-0 text-center font-kai"
+            className="absolute"
             style={{
-              fontSize: Math.max(9, width * 0.14),
-              color: t.text,
-              fontWeight: 900,
-              textShadow: `0 1px 2px ${t.flagDark}, 0 0 3px rgba(0,0,0,0.8)`,
-              lineHeight: 1.1,
-              padding: '0 2px',
-              wordBreak: 'keep-all',
-              overflow: 'hidden',
-              whiteSpace: 'nowrap',
+              left: '25%',
+              top: '35%',
+              width: 2,
+              height: 2,
+              background: '#000',
+              borderRadius: '50%',
+            }}
+          />
+          <div
+            className="absolute"
+            style={{
+              right: '25%',
+              top: '35%',
+              width: 2,
+              height: 2,
+              background: '#000',
+              borderRadius: '50%',
+            }}
+          />
+        </div>
+
+        {/* =========== 肩甲（左右） =========== */}
+        <div
+          className="absolute"
+          style={{
+            left: '8%',
+            top: width * 0.55,
+            width: width * 0.22,
+            height: width * 0.18,
+            background: `linear-gradient(135deg, ${t.metal} 0%, ${t.armor} 60%, ${t.armorDark} 100%)`,
+            borderRadius: '60% 30% 40% 60% / 70% 30% 40% 60%',
+            border: `1px solid ${t.armorDark}`,
+            boxShadow: `inset 1px 1px 1px rgba(255,255,255,0.3), 0 2px 3px rgba(0,0,0,0.5)`,
+            transform: 'rotate(-15deg)',
+          }}
+        />
+        <div
+          className="absolute"
+          style={{
+            right: '8%',
+            top: width * 0.55,
+            width: width * 0.22,
+            height: width * 0.18,
+            background: `linear-gradient(225deg, ${t.metal} 0%, ${t.armor} 60%, ${t.armorDark} 100%)`,
+            borderRadius: '30% 60% 60% 40% / 30% 70% 60% 40%',
+            border: `1px solid ${t.armorDark}`,
+            boxShadow: `inset -1px 1px 1px rgba(255,255,255,0.3), 0 2px 3px rgba(0,0,0,0.5)`,
+            transform: 'rotate(15deg)',
+          }}
+        />
+
+        {/* =========== 胸甲（主躯干） =========== */}
+        <div
+          className="absolute left-1/2"
+          style={{
+            top: width * 0.62,
+            width: width * 0.65,
+            height: width * 0.58,
+            transform: 'translateX(-50%)',
+            background: `
+              repeating-linear-gradient(0deg, ${t.armorDark} 0 2px, ${t.armor} 2px 10px, ${t.armorDark} 10px 12px, ${t.armor} 12px 20px),
+              linear-gradient(180deg, ${t.armorLight} 0%, ${t.armor} 50%, ${t.armorDark} 100%)
+            `,
+            backgroundBlendMode: 'multiply',
+            border: `1.5px solid ${t.armorDark}`,
+            borderRadius: '25% 25% 10% 10% / 15% 15% 5% 5%',
+            boxShadow: `
+              inset 2px 2px 3px rgba(255,255,255,0.2),
+              inset -2px -2px 4px rgba(0,0,0,0.5),
+              0 3px 5px rgba(0,0,0,0.6)
+            `,
+          }}
+        >
+          {/* 胸口徽章 / 护心镜（显示阵营字） */}
+          <div
+            className="absolute left-1/2 top-1/2 flex items-center justify-center font-kai font-black"
+            style={{
+              width: width * 0.38,
+              height: width * 0.38,
+              transform: 'translate(-50%, -55%)',
+              background: `
+                radial-gradient(circle at 35% 35%, ${t.metal} 0%, ${t.metalDark} 50%, ${t.armorDark} 100%)
+              `,
+              borderRadius: '50%',
+              border: `1.5px solid ${t.armorDark}`,
+              fontSize: width * 0.26,
+              color: t.char,
+              textShadow: `
+                0 0 5px ${t.glow},
+                -1px -1px 0 ${t.armorDark},
+                1px -1px 0 ${t.armorDark},
+                -1px 1px 0 ${t.armorDark},
+                1px 1px 0 ${t.armorDark}
+              `,
+              boxShadow: `
+                inset 1px 1px 2px rgba(255,255,255,0.4),
+                inset -1px -1px 2px rgba(0,0,0,0.5),
+                0 0 ${highlight ? '10px' : '4px'} ${t.glow}
+              `,
             }}
           >
-            {card.name}
+            {card.faction}
           </div>
+        </div>
+
+        {/* =========== 腰带（武将名） =========== */}
+        <div
+          className="absolute left-1/2"
+          style={{
+            bottom: 2,
+            width: width * 0.75,
+            height: width * 0.18,
+            transform: 'translateX(-50%)',
+            background: `linear-gradient(180deg, ${t.metal} 0%, ${t.armorDark} 100%)`,
+            border: `1px solid ${t.armorDark}`,
+            borderRadius: 3,
+            boxShadow:
+              'inset 0 1px 1px rgba(255,255,255,0.3), inset 0 -1px 2px rgba(0,0,0,0.5), 0 2px 3px rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: Math.max(10, width * 0.14),
+            color: t.armorDark,
+            fontFamily: 'STKaiti, KaiTi, serif',
+            fontWeight: 900,
+            letterSpacing: '0.05em',
+            textShadow: '0 1px 0 rgba(255,255,255,0.3)',
+            overflow: 'hidden',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {card.name}
         </div>
       </motion.div>
 
-      {/* 基座（梯形 3D） */}
+      {/* =========== 基座（梯形 3D，显示战力） =========== */}
       <div
         className="relative"
         style={{
           width: baseW,
           height: baseH,
-          transform: 'translateZ(0)',
         }}
       >
         {/* 基座顶面 */}
         <div
           className="absolute top-0 left-0 right-0"
           style={{
-            height: baseH * 0.55,
-            background: `linear-gradient(180deg, ${t.primaryLight} 0%, ${t.primary} 70%, ${t.primaryDark} 100%)`,
+            height: baseH * 0.45,
+            background: `linear-gradient(180deg, ${t.armorLight} 0%, ${t.armor} 70%, ${t.armorDark} 100%)`,
             clipPath: 'polygon(8% 0%, 92% 0%, 100% 100%, 0% 100%)',
-            boxShadow: `inset 0 2px 2px rgba(255,255,255,0.25), inset 0 -2px 4px rgba(0,0,0,0.5)`,
-            borderTop: `1px solid ${t.primaryLight}`,
+            boxShadow: 'inset 0 2px 2px rgba(255,255,255,0.25), inset 0 -2px 3px rgba(0,0,0,0.5)',
+            borderTop: `1px solid ${t.armorLight}`,
           }}
         />
-        {/* 基座正面（数字显示区） */}
+        {/* 基座正面 —— 战力数字 */}
         <div
           className="absolute left-0 right-0 flex items-center justify-center"
           style={{
-            top: baseH * 0.45,
+            top: baseH * 0.35,
             bottom: 0,
-            background: `linear-gradient(180deg, ${t.primaryDark} 0%, ${t.primary} 40%, ${t.primaryDark} 100%)`,
-            borderTop: `1px solid ${t.flagEdge}55`,
-            borderBottom: `2px solid #000`,
-            boxShadow: `inset 0 2px 4px rgba(0,0,0,0.6), 0 4px 8px rgba(0,0,0,0.8)`,
+            background: `
+              repeating-linear-gradient(90deg, rgba(0,0,0,0.2) 0 2px, transparent 2px 8px),
+              linear-gradient(180deg, ${t.armorDark} 0%, ${t.armor} 40%, ${t.armorDark} 100%)
+            `,
+            borderTop: `2px solid ${t.armorEdge}`,
+            borderBottom: '2px solid #000',
+            borderLeft: '1px solid #000',
+            borderRight: '1px solid #000',
+            boxShadow: `inset 0 2px 4px rgba(0,0,0,0.6), 0 3px 6px rgba(0,0,0,0.8)`,
           }}
         >
-          {/* 战斗力数字 */}
           <div
             className="font-kai font-black tabular-nums"
             style={{
-              fontSize: width * 0.28,
-              color: t.flagEdge,
+              fontSize: width * 0.3,
+              color: t.armorEdge,
               textShadow: `
                 0 0 6px ${t.glow},
                 0 0 2px #000,
@@ -298,12 +570,12 @@ function Soldier({
         </div>
         {/* 地面投影 */}
         <div
-          className="absolute left-[-10%] right-[-10%]"
+          className="absolute left-[-15%] right-[-15%] pointer-events-none"
           style={{
-            bottom: -6,
-            height: 8,
-            background: `radial-gradient(ellipse at center, rgba(0,0,0,0.7) 0%, transparent 70%)`,
-            filter: 'blur(2px)',
+            bottom: -10,
+            height: 12,
+            background: `radial-gradient(ellipse at center, rgba(0,0,0,0.8) 0%, transparent 70%)`,
+            filter: 'blur(3px)',
           }}
         />
       </div>
@@ -311,37 +583,28 @@ function Soldier({
   );
 }
 
-/** 空阵位 —— 草席/夯土地面 */
-function EmptySlot({
-  width,
-  index,
-  isOver,
-}: {
-  width: number;
-  index: number;
-  isOver: boolean;
-}) {
+/** 空阵位 */
+function EmptySlot({ width, index, isOver }: { width: number; index: number; isOver: boolean }) {
   return (
     <div
       className="relative flex flex-col items-center justify-end"
       style={{
         width: width,
-        height: width * 1.53 + width * 0.38 + 8,
+        height: width * 1.45 + width * 0.35,
       }}
     >
-      {/* 阵位地面 */}
       <div
         className="relative rounded-full transition-all"
         style={{
           width: width * 0.95,
-          height: width * 0.28,
+          height: width * 0.26,
           background: isOver
-            ? `radial-gradient(ellipse at center, rgba(212,175,55,0.4) 0%, rgba(139,101,20,0.2) 60%, transparent 100%)`
+            ? `radial-gradient(ellipse at center, rgba(212,175,55,0.5) 0%, rgba(139,101,20,0.25) 60%, transparent 100%)`
             : `radial-gradient(ellipse at center, rgba(90,60,30,0.6) 0%, rgba(40,25,15,0.3) 60%, transparent 100%)`,
           border: `1px dashed ${isOver ? '#d4af37' : '#5a3a24'}`,
           boxShadow: isOver
-            ? 'inset 0 0 12px rgba(212,175,55,0.4), 0 0 16px rgba(212,175,55,0.5)'
-            : 'inset 0 1px 3px rgba(0,0,0,0.6)',
+            ? 'inset 0 0 14px rgba(212,175,55,0.5), 0 0 20px rgba(212,175,55,0.6)'
+            : 'inset 0 2px 4px rgba(0,0,0,0.6)',
         }}
       >
         <div
@@ -352,14 +615,14 @@ function EmptySlot({
             textShadow: '0 1px 2px rgba(0,0,0,0.8)',
           }}
         >
-          {isOver ? '降 · ' : '空'} {index + 1}
+          {isOver ? '降 · ' : '空 · '}{index + 1}
         </div>
       </div>
     </div>
   );
 }
 
-export function BattleField3D({ teamIndex, cards, evalResult, canRedraw, onRedraw }: Props) {
+export function BattleField3D({ teamIndex, cards, evalResult, canRedraw: _canRedraw, onRedraw: _onRedraw }: Props) {
   const full = cards.every((c) => c !== null);
   const highlight = !!evalResult && (evalResult.rankType.score >= 6 || evalResult.isFlush);
 
@@ -387,7 +650,7 @@ export function BattleField3D({ teamIndex, cards, evalResult, canRedraw, onRedra
       layout
       className={[
         'relative rounded-lg wood-panel bronze-border rivets min-w-0',
-        highlight ? 'wood-dark' : 'wood-dark',
+        'wood-dark',
       ].join(' ')}
       style={
         highlight
@@ -400,7 +663,7 @@ export function BattleField3D({ teamIndex, cards, evalResult, canRedraw, onRedra
     >
       <div className="rivet-b" />
 
-      {/* 头部：军名 + 牌型 + 战力 */}
+      {/* 头部 */}
       <div className="flex items-center justify-between mb-2 gap-2 flex-wrap ink-underline">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-red-500 text-base">㊉</span>
@@ -509,42 +772,39 @@ export function BattleField3D({ teamIndex, cards, evalResult, canRedraw, onRedra
         </motion.div>
       )}
 
-      {/* 3D 战场 */}
       <Field3DStage
         ref={rowRef}
         cards={cards}
         cardW={cardW}
         teamIndex={teamIndex}
-        canRedraw={canRedraw}
-        onRedraw={onRedraw}
         highlight={highlight}
       />
     </motion.div>
   );
 }
 
-/** 3D 战场舞台 —— 核心 perspective 容器 */
+/** 3D 战场舞台 */
 const Field3DStage = React.forwardRef<
   HTMLDivElement,
   {
     cards: (Card | null)[];
     cardW: number;
     teamIndex: number;
-    canRedraw: boolean;
-    onRedraw: (id: string) => void;
     highlight: boolean;
   }
->(({ cards, cardW, teamIndex, canRedraw, onRedraw, highlight }, ref) => {
+>(({ cards, cardW, teamIndex, highlight }, ref) => {
+  const fieldH = cardW * 1.45 + cardW * 0.35 + 55;
+
   return (
     <div
       ref={ref}
-      className="relative w-full overflow-hidden rounded-md"
+      className="relative w-full rounded-md"
       style={{
-        perspective: '800px',
-        perspectiveOrigin: '50% 30%',
-        height: cardW * 1.53 + cardW * 0.38 + 50,
+        height: fieldH,
+        // 关键：不使用 overflow-hidden，避免拖拽时小兵超出容器被裁切
+        // 用单独的 background 图层营造 3D 感，但前景元素不做 perspective
         background: `
-          radial-gradient(ellipse at 50% 100%, rgba(212,175,55,0.08) 0%, transparent 70%),
+          radial-gradient(ellipse at 50% 100%, rgba(212,175,55,0.1) 0%, transparent 70%),
           linear-gradient(180deg,
             #0a0502 0%,
             #1a0f08 30%,
@@ -556,58 +816,74 @@ const Field3DStage = React.forwardRef<
         border: '2px solid #1a0f08',
       }}
     >
-      {/* 远景：天空/远山（水平光晕） */}
+      {/* 远景天幕 */}
       <div
-        className="absolute top-0 left-0 right-0 pointer-events-none"
+        className="absolute top-0 left-0 right-0 pointer-events-none rounded-t-md"
         style={{
-          height: '35%',
+          height: '30%',
           background:
-            'linear-gradient(180deg, rgba(100,70,30,0.15) 0%, rgba(40,25,15,0.05) 70%, transparent 100%)',
+            'linear-gradient(180deg, rgba(100,70,30,0.2) 0%, rgba(40,25,15,0.08) 70%, transparent 100%)',
         }}
       />
 
-      {/* 3D 地面 (倾斜的 plane) */}
+      {/* 3D 倾斜地面 —— 独立层，与拖拽层不冲突 */}
       <div
-        className="absolute left-0 right-0 bottom-0"
-        style={{
-          height: '70%',
-          transform: 'rotateX(58deg) translateZ(0)',
-          transformOrigin: 'center bottom',
-          background: `
-            repeating-linear-gradient(
-              90deg,
-              rgba(0,0,0,0.35) 0 1px,
-              transparent 1px 20px
-            ),
-            repeating-linear-gradient(
-              0deg,
-              rgba(0,0,0,0.35) 0 1px,
-              transparent 1px 20px
-            ),
-            radial-gradient(ellipse at center 20%, #5a3a24 0%, #2a1810 50%, #0a0502 100%)
-          `,
-          boxShadow: 'inset 0 -20px 40px rgba(0,0,0,0.7)',
-        }}
-      />
+        className="absolute left-0 right-0 bottom-0 pointer-events-none overflow-hidden rounded-b-md"
+        style={{ height: '75%' }}
+      >
+        <div
+          className="absolute inset-0"
+          style={{
+            transform: 'rotateX(60deg)',
+            transformOrigin: 'center bottom',
+            background: `
+              repeating-linear-gradient(
+                90deg,
+                rgba(0,0,0,0.35) 0 1px,
+                transparent 1px 22px
+              ),
+              repeating-linear-gradient(
+                0deg,
+                rgba(0,0,0,0.4) 0 1px,
+                transparent 1px 22px
+              ),
+              radial-gradient(ellipse at center 20%, #5a3a24 0%, #2a1810 50%, #0a0502 100%)
+            `,
+            boxShadow: 'inset 0 -20px 40px rgba(0,0,0,0.8)',
+          }}
+        />
+      </div>
 
-      {/* 地面高亮 (中央聚光) */}
+      {/* 中央聚光灯（高倍率时） */}
       {highlight && (
         <div
           className="absolute left-1/2 bottom-0 pointer-events-none"
           style={{
-            width: '70%',
-            height: '80%',
+            width: '75%',
+            height: '85%',
             transform: 'translateX(-50%)',
-            background: 'radial-gradient(ellipse at center 90%, rgba(212,175,55,0.35) 0%, transparent 60%)',
+            background:
+              'radial-gradient(ellipse at center 90%, rgba(212,175,55,0.4) 0%, transparent 60%)',
           }}
         />
       )}
 
-      {/* 兵马阵列 */}
+      {/* 远景水平金线 */}
       <div
-        className="absolute left-0 right-0 flex justify-center items-end"
+        className="absolute top-[30%] left-4 right-4 pointer-events-none"
         style={{
-          bottom: 16,
+          height: 1,
+          background:
+            'linear-gradient(90deg, transparent 0%, #8b6914 20%, #d4af37 50%, #8b6914 80%, transparent 100%)',
+          opacity: 0.5,
+        }}
+      />
+
+      {/* 兵阵（前景层，拖拽区） */}
+      <div
+        className="absolute left-0 right-0 flex justify-center items-end z-10"
+        style={{
+          bottom: 14,
           gap: GAP,
           padding: '0 12px',
         }}
@@ -619,37 +895,22 @@ const Field3DStage = React.forwardRef<
             slotIndex={si}
             card={c}
             width={cardW}
-            canRedraw={canRedraw}
-            onRedraw={onRedraw}
             highlight={highlight}
             index={si}
           />
         ))}
       </div>
-
-      {/* 军旗水平装饰线 */}
-      <div
-        className="absolute top-0 left-4 right-4 pointer-events-none"
-        style={{
-          height: 1,
-          background:
-            'linear-gradient(90deg, transparent 0%, #8b6914 20%, #d4af37 50%, #8b6914 80%, transparent 100%)',
-          opacity: 0.6,
-        }}
-      />
     </div>
   );
 });
 Field3DStage.displayName = 'Field3DStage';
 
-/** 单个兵位（含 droppable 逻辑） */
+/** 单兵位 droppable */
 function SlotDroppable({
   teamIndex,
   slotIndex,
   card,
   width,
-  canRedraw,
-  onRedraw,
   highlight,
   index,
 }: {
@@ -657,8 +918,6 @@ function SlotDroppable({
   slotIndex: number;
   card: Card | null;
   width: number;
-  canRedraw: boolean;
-  onRedraw: (id: string) => void;
   highlight: boolean;
   index: number;
 }) {
@@ -670,10 +929,7 @@ function SlotDroppable({
   return (
     <div
       ref={setNodeRef}
-      className="relative flex flex-col items-center justify-end"
-      style={{
-        flexShrink: 0,
-      }}
+      className="relative flex flex-col items-center justify-end shrink-0"
     >
       <AnimatePresence mode="wait">
         {card ? (
@@ -683,7 +939,6 @@ function SlotDroppable({
             width={width}
             index={index}
             highlight={highlight}
-            onDoubleClick={canRedraw ? () => onRedraw(card.id) : undefined}
           />
         ) : (
           <EmptySlot key="empty" width={width} index={slotIndex} isOver={isOver} />
