@@ -1,6 +1,9 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { OrthographicCamera, RoundedBox, Text, Cylinder, Cone, Sphere, Box } from '@react-three/drei';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { AnimatePresence, motion } from 'framer-motion';
+import * as THREE from 'three';
 import type { Card, EvaluateResult, Faction } from '../types';
 import { POWER_CAP } from '../evaluate';
 
@@ -12,545 +15,603 @@ interface Props {
   onRedraw: (id: string) => void;
 }
 
-/**
- * 阵营配色（水墨卷轴风 · 参考真实三国策略游戏）
- * 用于：武将徽章背景、小兵身上服色
- */
-const FACTION_3D: Record<
+/** 阵营 3D 材质配置 */
+const FACTION_MAT: Record<
   Faction,
   {
-    badge: string;        // 武将徽章背景
-    badgeDark: string;
-    soldierMain: string;  // 小兵主色
-    soldierDark: string;
-    soldierLight: string;
-    horse: string;        // 马匹色
-    horseDark: string;
+    armor: string;
+    armorAccent: string;
+    cloth: string;
+    tassel: string;      // 缨穗
     flag: string;
-    text: string;
+    metal: string;
+    emissive: string;
+    glow: number;
   }
 > = {
   魏: {
-    badge: '#1e3a5f',
-    badgeDark: '#0f1e33',
-    soldierMain: '#1e3a8a',
-    soldierDark: '#0c1e4a',
-    soldierLight: '#3b82f6',
-    horse: '#6b7280',
-    horseDark: '#374151',
+    armor: '#1e3a5f',
+    armorAccent: '#3b82f6',
+    cloth: '#1e40af',
+    tassel: '#dc2626',
     flag: '#2563eb',
-    text: '#dbeafe',
+    metal: '#94a3b8',
+    emissive: '#1e40af',
+    glow: 0.15,
   },
   蜀: {
-    badge: '#7a1f1f',
-    badgeDark: '#3a0808',
-    soldierMain: '#991b1b',
-    soldierDark: '#450a0a',
-    soldierLight: '#ef4444',
-    horse: '#8b5a3c',
-    horseDark: '#5a3a24',
+    armor: '#7a1f1f',
+    armorAccent: '#ef4444',
+    cloth: '#991b1b',
+    tassel: '#fbbf24',
     flag: '#dc2626',
-    text: '#fee2e2',
+    metal: '#d4af37',
+    emissive: '#7a1f1f',
+    glow: 0.25,
   },
   吴: {
-    badge: '#0f3826',
-    badgeDark: '#04180f',
-    soldierMain: '#065f46',
-    soldierDark: '#022c22',
-    soldierLight: '#10b981',
-    horse: '#78716c',
-    horseDark: '#44403c',
+    armor: '#0f3826',
+    armorAccent: '#10b981',
+    cloth: '#065f46',
+    tassel: '#fbbf24',
     flag: '#059669',
-    text: '#d1fae5',
+    metal: '#d4af37',
+    emissive: '#065f46',
+    glow: 0.15,
   },
   群: {
-    badge: '#3d3a2a',
-    badgeDark: '#1a1810',
-    soldierMain: '#78350f',
-    soldierDark: '#3a1a05',
-    soldierLight: '#d97706',
-    horse: '#a8896b',
-    horseDark: '#78583f',
+    armor: '#3d3a2a',
+    armorAccent: '#fbbf24',
+    cloth: '#78350f',
+    tassel: '#dc2626',
     flag: '#b45309',
-    text: '#fef3c7',
+    metal: '#d4af37',
+    emissive: '#78350f',
+    glow: 0.2,
   },
 };
 
 const SLOTS = 5;
-const MIN_W = 90;
-const MAX_W = 150;
-const GAP = 10;
+const SLOT_SPACING = 1.8; // 牌位间距
 
-/**
- * SVG 梯形牌位 + 小兵方阵
- * 牌位形状类似参考图：金色描边的斜梯形（近大远小）
- */
-function SlotTile({
-  card,
-  width,
-  index,
+// ======================================================================
+// 3D 子模型
+// ======================================================================
+
+/** 单个 3D 武将小兵模型 */
+function SoldierModel({
+  faction,
   highlight,
-  isOver,
+  index,
 }: {
-  card: Card | null;
-  width: number;
-  index: number;
+  faction: Faction;
   highlight: boolean;
-  isOver: boolean;
-}) {
-  // 梯形尺寸：近大远小 (近边宽 = 100%，远边宽 = 75%)
-  const nearW = width * 0.98;
-  const farW = width * 0.78;
-  const tileH = width * 0.72;
-  const svgH = tileH + width * 0.5; // 额外高度给小兵立绘
-  const faction = card?.faction;
-  const t = faction ? FACTION_3D[faction] : null;
-
-  const empty = !card;
-
-  return (
-    <svg
-      viewBox={`0 0 ${nearW} ${svgH}`}
-      width={nearW}
-      height={svgH}
-      style={{
-        overflow: 'visible',
-        pointerEvents: 'none',
-        filter: isOver
-          ? 'drop-shadow(0 0 12px rgba(212,175,55,0.9))'
-          : highlight && !empty
-            ? 'drop-shadow(0 0 8px rgba(212,175,55,0.5))'
-            : 'drop-shadow(0 4px 6px rgba(0,0,0,0.5))',
-      }}
-    >
-      <defs>
-        <linearGradient id={`tile-bg-${index}`} x1="50%" y1="0%" x2="50%" y2="100%">
-          <stop offset="0%" stopColor="rgba(245, 235, 210, 0.15)" />
-          <stop offset="50%" stopColor="rgba(245, 235, 210, 0.25)" />
-          <stop offset="100%" stopColor="rgba(245, 235, 210, 0.12)" />
-        </linearGradient>
-        <linearGradient id={`tile-border-${index}`} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#d4af37" />
-          <stop offset="50%" stopColor="#fde68a" />
-          <stop offset="100%" stopColor="#8b6914" />
-        </linearGradient>
-        {t && (
-          <>
-            <radialGradient id={`soldier-grad-${index}`}>
-              <stop offset="0%" stopColor={t.soldierLight} />
-              <stop offset="70%" stopColor={t.soldierMain} />
-              <stop offset="100%" stopColor={t.soldierDark} />
-            </radialGradient>
-            <linearGradient id={`flag-grad-${index}`} x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor={t.flag} />
-              <stop offset="100%" stopColor={t.soldierDark} />
-            </linearGradient>
-          </>
-        )}
-      </defs>
-
-      {/* === 梯形牌位 === */}
-      <g transform={`translate(0, ${width * 0.35})`}>
-        {/* 牌位底（梯形） */}
-        <polygon
-          points={`
-            ${(nearW - farW) / 2},0
-            ${(nearW + farW) / 2},0
-            ${nearW},${tileH}
-            0,${tileH}
-          `}
-          fill={`url(#tile-bg-${index})`}
-          stroke={`url(#tile-border-${index})`}
-          strokeWidth={isOver ? 3 : 2}
-          opacity={isOver ? 1 : empty ? 0.65 : 0.8}
-        />
-        {/* 内描线（二重金边） */}
-        <polygon
-          points={`
-            ${(nearW - farW) / 2 + 5},5
-            ${(nearW + farW) / 2 - 5},5
-            ${nearW - 5},${tileH - 5}
-            5,${tileH - 5}
-          `}
-          fill="none"
-          stroke="#d4af37"
-          strokeWidth={0.8}
-          opacity={0.5}
-        />
-
-        {empty && (
-          <text
-            x={nearW / 2}
-            y={tileH / 2 + 5}
-            textAnchor="middle"
-            fontSize={width * 0.12}
-            fill={isOver ? '#fde68a' : '#8b6914'}
-            fontFamily="STKaiti, KaiTi, serif"
-            fontWeight="900"
-            opacity={isOver ? 1 : 0.6}
-            fontStyle="italic"
-          >
-            {isOver ? `降 · ${index + 1}` : `空位 ${index + 1}`}
-          </text>
-        )}
-      </g>
-
-      {/* === 小兵方阵（只有已上阵时显示） === */}
-      {card && t && (
-        <SoldierArmy
-          t={t}
-          index={index}
-          tileNearW={nearW}
-          tileFarW={farW}
-          tileH={tileH}
-          baseY={width * 0.35}
-          unitSize={width * 0.18}
-        />
-      )}
-
-      {/* === 武将徽章（圆头像） === */}
-      {card && t && (
-        <CommanderBadge
-          card={card}
-          t={t}
-          cx={width * 0.18}
-          cy={width * 0.25}
-          r={width * 0.2}
-        />
-      )}
-
-      {/* === 战斗力数字（右下） === */}
-      {card && (
-        <g>
-          <rect
-            x={nearW - width * 0.3}
-            y={svgH - width * 0.22}
-            width={width * 0.28}
-            height={width * 0.18}
-            rx={3}
-            fill="rgba(0,0,0,0.75)"
-            stroke="#d4af37"
-            strokeWidth={1.5}
-          />
-          <text
-            x={nearW - width * 0.16}
-            y={svgH - width * 0.08}
-            textAnchor="middle"
-            fontSize={width * 0.14}
-            fill="#fde68a"
-            fontFamily="STKaiti, KaiTi, serif"
-            fontWeight="900"
-            style={{
-              filter: 'drop-shadow(0 0 3px rgba(212,175,55,0.8))',
-            }}
-          >
-            {card.pointValue}
-          </text>
-        </g>
-      )}
-    </svg>
-  );
-}
-
-/**
- * 武将徽章 —— 圆形头像徽标
- * 参考图里左上角小圆章 + 盾牌 + 名字横幅
- */
-function CommanderBadge({
-  card,
-  t,
-  cx,
-  cy,
-  r,
-}: {
-  card: Card;
-  t: (typeof FACTION_3D)[Faction];
-  cx: number;
-  cy: number;
-  r: number;
-}) {
-  return (
-    <g>
-      {/* 外圈（金边） */}
-      <circle cx={cx} cy={cy} r={r} fill={t.badgeDark} stroke="#d4af37" strokeWidth={2} />
-      {/* 内圈（阵营色渐变） */}
-      <circle cx={cx} cy={cy} r={r - 3} fill={t.badge} />
-      {/* 简化人像：头 + 肩 */}
-      <ellipse cx={cx} cy={cy - r * 0.25} rx={r * 0.28} ry={r * 0.3} fill="#d4a574" />
-      <path
-        d={`
-          M ${cx - r * 0.55} ${cy + r * 0.5}
-          Q ${cx} ${cy + r * 0.05} ${cx + r * 0.55} ${cy + r * 0.5}
-          L ${cx + r * 0.6} ${cy + r * 0.8}
-          L ${cx - r * 0.6} ${cy + r * 0.8}
-          Z
-        `}
-        fill={t.soldierMain}
-        stroke={t.soldierDark}
-        strokeWidth={0.8}
-      />
-      {/* 帽子 */}
-      <path
-        d={`
-          M ${cx - r * 0.38} ${cy - r * 0.45}
-          Q ${cx} ${cy - r * 0.75} ${cx + r * 0.38} ${cy - r * 0.45}
-          L ${cx + r * 0.3} ${cy - r * 0.35}
-          L ${cx - r * 0.3} ${cy - r * 0.35}
-          Z
-        `}
-        fill={t.soldierDark}
-      />
-
-      {/* 下方阵营盾牌横幅 */}
-      <g transform={`translate(${cx - r * 0.5}, ${cy + r * 1.05})`}>
-        <path
-          d={`
-            M 0 0 L ${r * 1.8} 0
-            L ${r * 1.95} ${r * 0.3}
-            L ${r * 1.65} ${r * 0.5}
-            L ${r * 0.15} ${r * 0.5}
-            L 0 ${r * 0.3}
-            Z
-          `}
-          fill={t.badge}
-          stroke="#d4af37"
-          strokeWidth={1}
-        />
-        {/* 盾形小徽章 */}
-        <path
-          d={`
-            M ${r * 0.15} ${r * 0.08}
-            L ${r * 0.45} ${r * 0.08}
-            L ${r * 0.45} ${r * 0.32}
-            Q ${r * 0.3} ${r * 0.45} ${r * 0.15} ${r * 0.32}
-            Z
-          `}
-          fill={t.soldierLight}
-          stroke="#d4af37"
-          strokeWidth={0.5}
-        />
-        <text
-          x={r * 0.3}
-          y={r * 0.27}
-          textAnchor="middle"
-          fontSize={r * 0.3}
-          fill="#fff"
-          fontFamily="STKaiti, KaiTi, serif"
-          fontWeight="900"
-        >
-          {card.faction}
-        </text>
-      </g>
-    </g>
-  );
-}
-
-/**
- * 小兵方阵（在牌位上站一排排小兵立绘）
- * 参考图：前排 3 个骑兵 + 后排 3 个骑兵 = 6 人方阵
- */
-function SoldierArmy({
-  t,
-  index,
-  tileNearW,
-  tileFarW,
-  tileH,
-  baseY,
-  unitSize,
-}: {
-  t: (typeof FACTION_3D)[Faction];
   index: number;
-  tileNearW: number;
-  tileFarW: number;
-  tileH: number;
-  baseY: number;
-  unitSize: number;
 }) {
-  // 2 排 × 3 列 = 6 只小兵
-  const rows = 2;
-  const cols = 3;
-  const soldiers: { x: number; y: number; delay: number }[] = [];
+  const m = FACTION_MAT[faction];
+  const groupRef = useRef<THREE.Group>(null);
+  const flagRef = useRef<THREE.Mesh>(null);
+  const tasselRef = useRef<THREE.Group>(null);
 
-  for (let r = 0; r < rows; r++) {
-    // 远排(r=0)：窄，居上
-    // 近排(r=1)：宽，居下
-    const rowProgress = r / (rows - 1); // 0 = far, 1 = near
-    const rowW = tileFarW + (tileNearW - tileFarW) * rowProgress;
-    const rowY = baseY + tileH * (0.15 + rowProgress * 0.55);
-    const xStart = (tileNearW - rowW) / 2;
-
-    for (let c = 0; c < cols; c++) {
-      const colProgress = c / (cols - 1); // 0 = left, 1 = right
-      const x = xStart + rowW * (0.18 + colProgress * 0.64);
-      soldiers.push({
-        x,
-        y: rowY,
-        delay: (r * cols + c) * 0.05,
-      });
+  // 待机摇摆 + 旗帜飘动
+  useFrame((state) => {
+    const t = state.clock.getElapsedTime();
+    if (groupRef.current) {
+      groupRef.current.rotation.y = Math.sin(t * 0.8 + index) * 0.05;
+      groupRef.current.position.y = Math.sin(t * 1.2 + index * 0.5) * 0.02;
     }
-  }
+    if (flagRef.current) {
+      flagRef.current.rotation.z = Math.sin(t * 2 + index) * 0.15;
+    }
+    if (tasselRef.current) {
+      tasselRef.current.rotation.x = Math.sin(t * 2.5 + index * 0.3) * 0.2;
+    }
+  });
 
   return (
-    <g>
-      {soldiers.map((s, i) => (
-        <motion.g
-          key={i}
-          initial={{ opacity: 0, y: s.y + 15 }}
-          animate={{ opacity: 1, y: s.y }}
-          transition={{ delay: index * 0.08 + s.delay, duration: 0.3 }}
+    <group ref={groupRef}>
+      {/* === 底座方砖 === */}
+      <RoundedBox args={[0.65, 0.08, 0.45]} radius={0.03} smoothness={4} position={[0, 0.04, 0]}>
+        <meshStandardMaterial color="#3a2418" roughness={0.8} />
+      </RoundedBox>
+      {/* 底座金边 */}
+      <Box args={[0.68, 0.02, 0.48]} position={[0, 0.01, 0]}>
+        <meshStandardMaterial color={m.metal} metalness={0.8} roughness={0.3} />
+      </Box>
+
+      {/* === 双腿 === */}
+      <Cylinder args={[0.05, 0.06, 0.35, 8]} position={[-0.1, 0.25, 0]}>
+        <meshStandardMaterial color={m.cloth} roughness={0.7} />
+      </Cylinder>
+      <Cylinder args={[0.05, 0.06, 0.35, 8]} position={[0.1, 0.25, 0]}>
+        <meshStandardMaterial color={m.cloth} roughness={0.7} />
+      </Cylinder>
+
+      {/* === 腰带 === */}
+      <Cylinder args={[0.14, 0.14, 0.06, 10]} position={[0, 0.45, 0]}>
+        <meshStandardMaterial color={m.metal} metalness={0.9} roughness={0.2} />
+      </Cylinder>
+
+      {/* === 躯干（铠甲） === */}
+      <RoundedBox
+        args={[0.32, 0.42, 0.2]}
+        radius={0.04}
+        smoothness={4}
+        position={[0, 0.7, 0]}
+      >
+        <meshStandardMaterial
+          color={m.armor}
+          metalness={0.7}
+          roughness={0.35}
+          emissive={m.emissive}
+          emissiveIntensity={highlight ? m.glow + 0.2 : m.glow}
+        />
+      </RoundedBox>
+
+      {/* 护心镜 */}
+      <Cylinder args={[0.09, 0.09, 0.03, 16]} position={[0, 0.72, 0.11]} rotation={[Math.PI / 2, 0, 0]}>
+        <meshStandardMaterial
+          color={m.metal}
+          metalness={1}
+          roughness={0.15}
+          emissive={m.armorAccent}
+          emissiveIntensity={highlight ? 0.4 : 0.15}
+        />
+      </Cylinder>
+
+      {/* === 肩甲 === */}
+      <Sphere args={[0.11, 10, 10]} position={[-0.2, 0.88, 0]} scale={[1, 0.8, 1]}>
+        <meshStandardMaterial color={m.metal} metalness={0.9} roughness={0.25} />
+      </Sphere>
+      <Sphere args={[0.11, 10, 10]} position={[0.2, 0.88, 0]} scale={[1, 0.8, 1]}>
+        <meshStandardMaterial color={m.metal} metalness={0.9} roughness={0.25} />
+      </Sphere>
+
+      {/* === 双臂 === */}
+      <Cylinder
+        args={[0.05, 0.05, 0.32, 8]}
+        position={[-0.22, 0.7, 0]}
+        rotation={[0, 0, 0.15]}
+      >
+        <meshStandardMaterial color={m.armor} roughness={0.5} />
+      </Cylinder>
+      <Cylinder
+        args={[0.05, 0.05, 0.32, 8]}
+        position={[0.22, 0.7, 0]}
+        rotation={[0, 0, -0.15]}
+      >
+        <meshStandardMaterial color={m.armor} roughness={0.5} />
+      </Cylinder>
+
+      {/* === 颈部 === */}
+      <Cylinder args={[0.06, 0.07, 0.08, 8]} position={[0, 0.96, 0]}>
+        <meshStandardMaterial color="#d4a574" roughness={0.7} />
+      </Cylinder>
+
+      {/* === 头部 === */}
+      <Sphere args={[0.11, 12, 12]} position={[0, 1.06, 0]}>
+        <meshStandardMaterial color="#d4a574" roughness={0.6} />
+      </Sphere>
+
+      {/* === 头盔 === */}
+      <Sphere
+        args={[0.13, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2]}
+        position={[0, 1.1, 0]}
+      >
+        <meshStandardMaterial color={m.metal} metalness={0.95} roughness={0.2} />
+      </Sphere>
+
+      {/* 头盔顶钉 */}
+      <Sphere args={[0.03, 8, 8]} position={[0, 1.22, 0]}>
+        <meshStandardMaterial color={m.metal} metalness={1} roughness={0.1} />
+      </Sphere>
+
+      {/* === 红缨（从头盔顶向后飘） === */}
+      <group ref={tasselRef} position={[0, 1.22, 0]}>
+        <Cone
+          args={[0.04, 0.2, 8]}
+          position={[0, 0.08, -0.05]}
+          rotation={[0.3, 0, 0]}
         >
-          <MiniSoldier
-            cx={s.x}
-            cy={s.y}
-            size={unitSize}
-            t={t}
-            index={i + index * 10}
+          <meshStandardMaterial
+            color={m.tassel}
+            emissive={m.tassel}
+            emissiveIntensity={0.3}
+            roughness={0.6}
           />
-        </motion.g>
+        </Cone>
+      </group>
+
+      {/* === 长矛（右手持） === */}
+      <group position={[0.28, 0.9, 0]} rotation={[0, 0, -0.1]}>
+        {/* 矛杆 */}
+        <Cylinder args={[0.015, 0.015, 1.4, 8]} position={[0.15, 0.3, 0]} rotation={[0, 0, -0.25]}>
+          <meshStandardMaterial color="#5a3810" roughness={0.9} />
+        </Cylinder>
+        {/* 矛尖 */}
+        <Cone args={[0.03, 0.12, 8]} position={[0.35, 0.95, 0]} rotation={[0, 0, -0.25]}>
+          <meshStandardMaterial color={m.metal} metalness={0.95} roughness={0.2} />
+        </Cone>
+        {/* 矛下红缨 */}
+        <Cone args={[0.04, 0.1, 8]} position={[0.3, 0.82, 0]} rotation={[Math.PI, 0, -0.25]}>
+          <meshStandardMaterial color={m.tassel} roughness={0.7} />
+        </Cone>
+      </group>
+
+      {/* === 小旗帜（左肩后） === */}
+      <group position={[-0.3, 1.0, -0.05]} rotation={[0, 0, 0.15]}>
+        {/* 旗杆 */}
+        <Cylinder args={[0.01, 0.01, 1.1, 6]} position={[0, 0.3, 0]}>
+          <meshStandardMaterial color="#8b6914" metalness={0.6} roughness={0.4} />
+        </Cylinder>
+        {/* 旗面 */}
+        <mesh ref={flagRef} position={[0.15, 0.55, 0]}>
+          <planeGeometry args={[0.3, 0.2]} />
+          <meshStandardMaterial
+            color={m.flag}
+            side={THREE.DoubleSide}
+            emissive={m.flag}
+            emissiveIntensity={0.2}
+            roughness={0.5}
+          />
+        </mesh>
+        {/* 旗杆顶饰 */}
+        <Sphere args={[0.02, 6, 6]} position={[0, 0.85, 0]}>
+          <meshStandardMaterial color={m.metal} metalness={1} roughness={0.1} />
+        </Sphere>
+      </group>
+    </group>
+  );
+}
+
+/** 点将台地板（青石） */
+function PlatformGround() {
+  return (
+    <group>
+      {/* 主平台 */}
+      <RoundedBox args={[12, 0.3, 4]} radius={0.1} position={[0, -0.15, 0]}>
+        <meshStandardMaterial color="#3a2a1c" roughness={0.9} />
+      </RoundedBox>
+
+      {/* 台面金边 */}
+      <Box args={[12.1, 0.02, 4.1]} position={[0, 0.01, 0]}>
+        <meshStandardMaterial color="#8b6914" metalness={0.7} roughness={0.4} />
+      </Box>
+
+      {/* 前阶梯 */}
+      <RoundedBox args={[11, 0.15, 0.6]} radius={0.05} position={[0, -0.35, 2.3]}>
+        <meshStandardMaterial color="#2a1c12" roughness={0.95} />
+      </RoundedBox>
+      <RoundedBox args={[10, 0.15, 0.5]} radius={0.05} position={[0, -0.5, 2.8]}>
+        <meshStandardMaterial color="#1a120a" roughness={0.95} />
+      </RoundedBox>
+
+      {/* 后方点将台基座 */}
+      <RoundedBox args={[6, 1.2, 0.3]} radius={0.1} position={[0, 0.6, -2.2]}>
+        <meshStandardMaterial color="#2a1c12" roughness={0.9} />
+      </RoundedBox>
+
+      {/* 青石地砖纹（用小方块拼接） */}
+      {Array.from({ length: 12 }).map((_, i) =>
+        Array.from({ length: 4 }).map((_, j) => (
+          <Box
+            key={`tile-${i}-${j}`}
+            args={[0.95, 0.005, 0.95]}
+            position={[-5.5 + i * 1.0, 0.008, -1.5 + j * 1.0]}
+          >
+            <meshStandardMaterial
+              color={(i + j) % 2 === 0 ? '#4a3a2a' : '#3a2a1c'}
+              roughness={0.95}
+            />
+          </Box>
+        )),
+      )}
+    </group>
+  );
+}
+
+/** 点将台上的"主帅"大旗 */
+function MainBanner({ teamIndex }: { teamIndex: number }) {
+  const flagRef = useRef<THREE.Mesh>(null);
+
+  useFrame((state) => {
+    if (flagRef.current) {
+      const t = state.clock.getElapsedTime();
+      flagRef.current.rotation.y = Math.sin(t * 1.2) * 0.15;
+    }
+  });
+
+  return (
+    <group position={[teamIndex === 0 ? -4.5 : 4.5, 1.2, -2.2]}>
+      {/* 旗杆 */}
+      <Cylinder args={[0.05, 0.05, 3, 10]} position={[0, 1.5, 0]}>
+        <meshStandardMaterial color="#8b6914" metalness={0.7} roughness={0.4} />
+      </Cylinder>
+      {/* 旗杆顶龙头装饰 */}
+      <Cone args={[0.08, 0.2, 6]} position={[0, 3.1, 0]}>
+        <meshStandardMaterial color="#d4af37" metalness={0.95} roughness={0.15} />
+      </Cone>
+      {/* 大旗面 */}
+      <mesh ref={flagRef} position={[0.5, 2.2, 0]}>
+        <planeGeometry args={[1.2, 1.5]} />
+        <meshStandardMaterial
+          color="#7a1f1f"
+          side={THREE.DoubleSide}
+          emissive="#7a1f1f"
+          emissiveIntensity={0.25}
+          roughness={0.5}
+        />
+      </mesh>
+    </group>
+  );
+}
+
+/** 点将台上的大鼎 */
+function Cauldron({ position }: { position: [number, number, number] }) {
+  return (
+    <group position={position}>
+      {/* 鼎腿 */}
+      {[0, 1, 2].map((i) => {
+        const angle = (i / 3) * Math.PI * 2;
+        return (
+          <Cylinder
+            key={i}
+            args={[0.04, 0.05, 0.3, 6]}
+            position={[Math.cos(angle) * 0.2, 0.15, Math.sin(angle) * 0.2]}
+          >
+            <meshStandardMaterial color="#4a3810" metalness={0.8} roughness={0.4} />
+          </Cylinder>
+        );
+      })}
+      {/* 鼎身 */}
+      <Cylinder args={[0.3, 0.2, 0.4, 16]} position={[0, 0.5, 0]}>
+        <meshStandardMaterial
+          color="#5a3810"
+          metalness={0.85}
+          roughness={0.35}
+          emissive="#d4af37"
+          emissiveIntensity={0.1}
+        />
+      </Cylinder>
+      {/* 鼎口 */}
+      <Cylinder args={[0.33, 0.3, 0.08, 16]} position={[0, 0.74, 0]}>
+        <meshStandardMaterial color="#8b6914" metalness={0.9} roughness={0.25} />
+      </Cylinder>
+      {/* 火焰 */}
+      <FireFlame position={[0, 0.85, 0]} />
+    </group>
+  );
+}
+
+/** 火焰特效 */
+function FireFlame({ position }: { position: [number, number, number] }) {
+  const ref = useRef<THREE.Mesh>(null);
+  useFrame((state) => {
+    if (ref.current) {
+      const t = state.clock.getElapsedTime();
+      ref.current.scale.y = 0.8 + Math.sin(t * 8) * 0.2;
+      ref.current.scale.x = 0.9 + Math.sin(t * 6) * 0.1;
+    }
+  });
+  return (
+    <mesh ref={ref} position={position}>
+      <coneGeometry args={[0.15, 0.4, 8]} />
+      <meshStandardMaterial
+        color="#fbbf24"
+        emissive="#dc2626"
+        emissiveIntensity={1.2}
+        transparent
+        opacity={0.9}
+      />
+    </mesh>
+  );
+}
+
+/** 3D 阵位（槽位） */
+function SlotTileMesh({
+  slotIndex,
+  x,
+  empty,
+  isOver,
+  highlight,
+}: {
+  slotIndex: number;
+  x: number;
+  empty: boolean;
+  isOver: boolean;
+  highlight: boolean;
+}) {
+  return (
+    <group position={[x, 0.05, 0]}>
+      {/* 青铜底座 */}
+      <RoundedBox args={[1.5, 0.08, 1.2]} radius={0.04} position={[0, 0, 0]}>
+        <meshStandardMaterial
+          color={isOver ? '#d4af37' : empty ? '#1a1008' : '#2a1c12'}
+          metalness={0.3}
+          roughness={0.7}
+          emissive={isOver ? '#d4af37' : highlight ? '#d4af37' : '#000'}
+          emissiveIntensity={isOver ? 0.5 : highlight ? 0.15 : 0}
+        />
+      </RoundedBox>
+      {/* 金边框 */}
+      <Box args={[1.52, 0.01, 1.22]} position={[0, 0.045, 0]}>
+        <meshStandardMaterial
+          color={isOver ? '#fde68a' : '#8b6914'}
+          metalness={0.95}
+          roughness={0.25}
+          emissive={isOver ? '#fde68a' : '#000'}
+          emissiveIntensity={isOver ? 0.4 : 0}
+        />
+      </Box>
+      {empty && (
+        <Text
+          position={[0, 0.06, 0]}
+          rotation={[-Math.PI / 2, 0, 0]}
+          fontSize={0.18}
+          color={isOver ? '#fde68a' : '#8b6914'}
+          anchorX="center"
+          anchorY="middle"
+        >
+          {isOver ? `降 · ${slotIndex + 1}` : `空 ${slotIndex + 1}`}
+        </Text>
+      )}
+    </group>
+  );
+}
+
+/** 战力显示浮标（3D 位置，HTML 渲染） */
+function PowerTag({ x, value, faction }: { x: number; value: number; faction: Faction }) {
+  const m = FACTION_MAT[faction];
+  return (
+    <group position={[x, 0.12, 0.55]}>
+      <RoundedBox args={[0.45, 0.2, 0.05]} radius={0.02} position={[0, 0.1, 0]}>
+        <meshStandardMaterial color="#1a0f08" roughness={0.7} />
+      </RoundedBox>
+      <Box args={[0.47, 0.005, 0.052]} position={[0, 0.21, 0]}>
+        <meshStandardMaterial color={m.metal} metalness={0.9} roughness={0.3} />
+      </Box>
+      <Text
+        position={[0, 0.1, 0.03]}
+        fontSize={0.13}
+        color="#fde68a"
+        anchorX="center"
+        anchorY="middle"
+        outlineColor="#000"
+        outlineWidth={0.005}
+      >
+        {value}
+      </Text>
+    </group>
+  );
+}
+
+/** 阵营徽章 3D 盾牌（立在槽位前） */
+function FactionShield({ x, faction }: { x: number; faction: Faction }) {
+  const m = FACTION_MAT[faction];
+  return (
+    <group position={[x - 0.55, 0.3, 0.55]}>
+      {/* 盾身 */}
+      <RoundedBox args={[0.28, 0.36, 0.04]} radius={0.03} position={[0, 0, 0]}>
+        <meshStandardMaterial
+          color={m.armor}
+          metalness={0.6}
+          roughness={0.4}
+          emissive={m.emissive}
+          emissiveIntensity={0.2}
+        />
+      </RoundedBox>
+      {/* 金边 */}
+      <Box args={[0.3, 0.38, 0.035]} position={[0, 0, -0.005]}>
+        <meshStandardMaterial color={m.metal} metalness={0.9} roughness={0.25} />
+      </Box>
+      {/* 阵营字 */}
+      <Text
+        position={[0, 0, 0.025]}
+        fontSize={0.18}
+        color="#fff"
+        anchorX="center"
+        anchorY="middle"
+        outlineColor={m.armor}
+        outlineWidth={0.008}
+      >
+        {faction}
+      </Text>
+    </group>
+  );
+}
+
+/** 完整 3D 场景 */
+function Scene({
+  cards,
+  hovered,
+  highlight,
+}: {
+  cards: (Card | null)[];
+  hovered: number | null;
+  highlight: boolean;
+}) {
+  const { camera } = useThree();
+
+  useEffect(() => {
+    camera.position.set(0, 3.5, 4.5);
+    camera.lookAt(0, 0.5, 0);
+  }, [camera]);
+
+  // 槽位 X 坐标
+  const xs = useMemo(
+    () => Array.from({ length: SLOTS }, (_, i) => (i - (SLOTS - 1) / 2) * SLOT_SPACING),
+    [],
+  );
+
+  return (
+    <>
+      {/* === 灯光 === */}
+      <ambientLight intensity={0.5} color="#ffd28c" />
+      <directionalLight
+        position={[5, 8, 5]}
+        intensity={1.2}
+        color="#fff2cc"
+        castShadow
+      />
+      <pointLight position={[0, 3, 2]} intensity={0.6} color="#fbbf24" distance={10} />
+      {/* 朱砂氛围光 */}
+      <pointLight position={[-4, 2, -2]} intensity={0.4} color="#dc2626" distance={6} />
+      <pointLight position={[4, 2, -2]} intensity={0.4} color="#dc2626" distance={6} />
+
+      {/* === 天穹远景雾 === */}
+      <fog attach="fog" args={['#2a1810', 5, 18]} />
+
+      {/* === 点将台地面 === */}
+      <PlatformGround />
+
+      {/* === 主帅旗 === */}
+      <MainBanner teamIndex={0} />
+
+      {/* === 两侧大鼎 === */}
+      <Cauldron position={[-3.2, 0, -1.8]} />
+      <Cauldron position={[3.2, 0, -1.8]} />
+
+      {/* === 5 个槽位 === */}
+      {xs.map((x, i) => (
+        <SlotTileMesh
+          key={i}
+          slotIndex={i}
+          x={x}
+          empty={!cards[i]}
+          isOver={hovered === i}
+          highlight={highlight}
+        />
       ))}
-    </g>
+
+      {/* === 武将小兵 === */}
+      {cards.map((c, i) =>
+        c ? (
+          <group key={c.id} position={[xs[i], 0.1, -0.1]}>
+            <SoldierModel faction={c.faction} highlight={highlight} index={i} />
+          </group>
+        ) : null,
+      )}
+
+      {/* === 阵营盾牌 === */}
+      {cards.map((c, i) =>
+        c ? <FactionShield key={`s-${c.id}`} x={xs[i]} faction={c.faction} /> : null,
+      )}
+
+      {/* === 战力数字 === */}
+      {cards.map((c, i) =>
+        c ? (
+          <PowerTag key={`p-${c.id}`} x={xs[i]} value={c.pointValue} faction={c.faction} />
+        ) : null,
+      )}
+    </>
   );
 }
 
 /**
- * 单个小兵立绘（SVG，骑兵简化版）
+ * 主组件 —— Canvas 外层 + HTML 叠加交互层
+ * 交互：用透明 HTML grid 覆盖在 Canvas 上，分成 5 个 droppable/draggable 槽位区
+ * 这样保留 dnd-kit 的完整交互，3D 视觉只是"显示层"
  */
-function MiniSoldier({
-  cx,
-  cy,
-  size,
-  t,
-  index,
-}: {
-  cx: number;
-  cy: number;
-  size: number;
-  t: (typeof FACTION_3D)[Faction];
-  index: number;
-}) {
-  // 马身
-  const horseW = size * 1.2;
-  const horseH = size * 0.55;
-
-  return (
-    <g transform={`translate(${cx}, ${cy})`}>
-      {/* 影子 */}
-      <ellipse
-        cx={0}
-        cy={size * 0.35}
-        rx={size * 0.55}
-        ry={size * 0.1}
-        fill="rgba(0,0,0,0.4)"
-      />
-
-      {/* 马身（椭圆） */}
-      <ellipse
-        cx={0}
-        cy={size * 0.05}
-        rx={horseW / 2}
-        ry={horseH / 2}
-        fill={t.horse}
-        stroke={t.horseDark}
-        strokeWidth={0.6}
-      />
-      {/* 马腿（4 条） */}
-      {[-0.35, -0.15, 0.15, 0.35].map((dx, i) => (
-        <rect
-          key={i}
-          x={dx * size - 1}
-          y={size * 0.2}
-          width={1.8}
-          height={size * 0.25}
-          fill={t.horseDark}
-          rx={0.5}
-        />
-      ))}
-      {/* 马头 */}
-      <ellipse
-        cx={size * 0.5}
-        cy={-size * 0.05}
-        rx={size * 0.13}
-        ry={size * 0.18}
-        fill={t.horse}
-        stroke={t.horseDark}
-        strokeWidth={0.5}
-      />
-      {/* 马脖子 */}
-      <path
-        d={`
-          M ${size * 0.3} ${-size * 0.1}
-          L ${size * 0.45} ${-size * 0.22}
-          L ${size * 0.5} ${-size * 0.05}
-          L ${size * 0.35} ${size * 0.05}
-          Z
-        `}
-        fill={t.horse}
-        stroke={t.horseDark}
-        strokeWidth={0.5}
-      />
-      {/* 马尾 */}
-      <path
-        d={`
-          M ${-size * 0.55} ${size * 0.05}
-          L ${-size * 0.7} ${-size * 0.05}
-          L ${-size * 0.68} ${size * 0.15}
-          Z
-        `}
-        fill={t.horseDark}
-      />
-
-      {/* 骑手（简化）—— 身体 */}
-      <ellipse
-        cx={size * 0.05}
-        cy={-size * 0.25}
-        rx={size * 0.2}
-        ry={size * 0.3}
-        fill={t.soldierMain}
-        stroke={t.soldierDark}
-        strokeWidth={0.6}
-      />
-      {/* 骑手头 */}
-      <circle cx={size * 0.05} cy={-size * 0.5} r={size * 0.12} fill="#d4a574" />
-      {/* 骑手头盔 */}
-      <path
-        d={`
-          M ${size * 0.05 - size * 0.13} ${-size * 0.52}
-          Q ${size * 0.05} ${-size * 0.68} ${size * 0.05 + size * 0.13} ${-size * 0.52}
-          Z
-        `}
-        fill={t.soldierDark}
-      />
-      {/* 长矛/旗杆（斜） */}
-      <line
-        x1={size * 0.2}
-        y1={-size * 0.55}
-        x2={size * 0.45}
-        y2={-size * 0.95}
-        stroke={t.soldierDark}
-        strokeWidth={1.5}
-      />
-      {/* 小旗帜 */}
-      <motion.rect
-        x={size * 0.38}
-        y={-size * 1.0}
-        width={size * 0.22}
-        height={size * 0.15}
-        fill={`url(#flag-grad-${Math.floor(index / 10)})`}
-        stroke={t.soldierDark}
-        strokeWidth={0.5}
-        animate={{ scaleX: [1, 0.9, 1] }}
-        transition={{
-          duration: 1.8 + (index % 5) * 0.2,
-          repeat: Infinity,
-          ease: 'easeInOut',
-        }}
-        style={{ transformOrigin: `${size * 0.38}px 0` }}
-      />
-    </g>
-  );
-}
-
-/** 整个战场 3D 组件 */
 export function BattleField3D({
   teamIndex,
   cards,
@@ -560,25 +621,7 @@ export function BattleField3D({
 }: Props) {
   const full = cards.every((c) => c !== null);
   const highlight = !!evalResult && (evalResult.rankType.score >= 6 || evalResult.isFlush);
-
-  const rowRef = useRef<HTMLDivElement | null>(null);
-  const [cardW, setCardW] = useState(MAX_W);
-
-  useEffect(() => {
-    const el = rowRef.current;
-    if (!el) return;
-    const recompute = () => {
-      const avail = el.clientWidth;
-      if (avail <= 0) return;
-      const raw = (avail - GAP * (SLOTS - 1) - 24) / SLOTS;
-      const clamped = Math.max(MIN_W, Math.min(MAX_W, Math.floor(raw)));
-      setCardW(clamped);
-    };
-    recompute();
-    const ro = new ResizeObserver(recompute);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
+  const [hovered, setHovered] = useState<number | null>(null);
 
   return (
     <motion.div
@@ -614,9 +657,7 @@ export function BattleField3D({
                 transition={{ type: 'spring', stiffness: 260 }}
                 className={[
                   'px-3 py-1 rounded text-sm font-black border-2 font-kai tracking-widest',
-                  highlight
-                    ? 'border-gold text-[#2a1808]'
-                    : 'border-amber-700 text-amber-50',
+                  highlight ? 'border-gold text-[#2a1808]' : 'border-amber-700 text-amber-50',
                 ].join(' ')}
                 style={{
                   background: highlight
@@ -686,12 +727,22 @@ export function BattleField3D({
             <span className="text-amber-200/50 text-base">(</span>
             <span className="text-emerald-300 tabular-nums">{evalResult.rankType.score}</span>
             <span className="text-amber-200/50 text-base">+</span>
-            <span className={['tabular-nums', evalResult.isFlush ? 'text-gold-grad' : 'text-amber-200/40'].join(' ')}>
+            <span
+              className={[
+                'tabular-nums',
+                evalResult.isFlush ? 'text-gold-grad' : 'text-amber-200/40',
+              ].join(' ')}
+            >
               {evalResult.suitBonus}
             </span>
             <span className="text-amber-200/50 text-base">)</span>
             <span className="text-amber-200/50 text-base">=</span>
-            <span className={['tabular-nums', evalResult.capped ? 'text-red-400 line-through' : 'text-gold-grad'].join(' ')}>
+            <span
+              className={[
+                'tabular-nums',
+                evalResult.capped ? 'text-red-400 line-through' : 'text-gold-grad',
+              ].join(' ')}
+            >
               {evalResult.rawPower}
             </span>
             {evalResult.capped && (
@@ -707,230 +758,103 @@ export function BattleField3D({
         </motion.div>
       )}
 
-      <Field3DStage
-        ref={rowRef}
-        cards={cards}
-        cardW={cardW}
-        teamIndex={teamIndex}
-        highlight={highlight}
-      />
+      {/* 3D Canvas + HTML 拖拽叠层 */}
+      <div className="relative w-full" style={{ aspectRatio: '16/9', minHeight: 220 }}>
+        {/* Three.js 3D 场景 */}
+        <div className="absolute inset-0 rounded-md overflow-hidden">
+          <Canvas
+            shadows
+            dpr={[1, 2]}
+            gl={{
+              antialias: true,
+              toneMapping: THREE.ACESFilmicToneMapping,
+              outputColorSpace: THREE.SRGBColorSpace,
+            }}
+            style={{
+              background:
+                'linear-gradient(180deg, #3a1f12 0%, #1a0f08 50%, #0a0502 100%)',
+            }}
+          >
+            <OrthographicCamera
+              makeDefault
+              position={[0, 3.5, 4.5]}
+              zoom={70}
+              near={0.1}
+              far={100}
+            />
+            <Scene cards={cards} hovered={hovered} highlight={highlight} />
+          </Canvas>
+        </div>
+
+        {/* HTML 拖拽叠层 —— 5 个透明区覆盖在 3D 上 */}
+        <div className="absolute inset-0 grid grid-cols-5 gap-0 p-2 pointer-events-none">
+          {cards.map((c, i) => (
+            <SlotInteractionLayer
+              key={i}
+              teamIndex={teamIndex}
+              slotIndex={i}
+              card={c}
+              onHoverChange={(hov) => setHovered(hov ? i : hovered === i ? null : hovered)}
+            />
+          ))}
+        </div>
+      </div>
     </motion.div>
   );
 }
 
-/** 战场舞台（水墨地图底） */
-const Field3DStage = React.forwardRef<
-  HTMLDivElement,
-  {
-    cards: (Card | null)[];
-    cardW: number;
-    teamIndex: number;
-    highlight: boolean;
-  }
->(({ cards, cardW, teamIndex, highlight }, ref) => {
-  const stageH = cardW * 1.3;
-
-  return (
-    <div
-      ref={ref}
-      className="relative w-full rounded-md"
-      style={{
-        height: stageH,
-        // 水墨地图底（参考图的雪地山脉水墨风）
-        background: `
-          radial-gradient(ellipse at 20% 30%, rgba(180, 150, 110, 0.15) 0%, transparent 50%),
-          radial-gradient(ellipse at 80% 60%, rgba(120, 100, 80, 0.2) 0%, transparent 50%),
-          linear-gradient(180deg,
-            #c8b896 0%,
-            #b8a680 20%,
-            #a89670 45%,
-            #988660 70%,
-            #786650 100%
-          )
-        `,
-        boxShadow: 'inset 0 4px 12px rgba(60,40,20,0.5), inset 0 -4px 8px rgba(60,40,20,0.4)',
-        border: '2px solid #3a2418',
-      }}
-    >
-      {/* 水墨河流/云纹背景纹理 */}
-      <svg
-        className="absolute inset-0 w-full h-full pointer-events-none opacity-40"
-        viewBox="0 0 400 200"
-        preserveAspectRatio="none"
-      >
-        <path
-          d="M 0 60 Q 100 40 200 80 T 400 70"
-          fill="none"
-          stroke="#6b5a45"
-          strokeWidth="1"
-          opacity="0.5"
-        />
-        <path
-          d="M 0 120 Q 120 100 240 140 T 400 130"
-          fill="none"
-          stroke="#5a4a35"
-          strokeWidth="1"
-          opacity="0.4"
-        />
-        <path
-          d="M 0 160 Q 80 150 160 170 T 400 165"
-          fill="none"
-          stroke="#6b5a45"
-          strokeWidth="0.8"
-          opacity="0.3"
-        />
-        {/* 远山轮廓 */}
-        <path
-          d="M 20 30 L 40 10 L 60 25 L 80 8 L 100 28 L 120 15 L 140 32 L 160 20 L 180 30 Z"
-          fill="#6b5a45"
-          opacity="0.2"
-        />
-        <path
-          d="M 220 35 L 240 12 L 260 30 L 280 18 L 300 32 L 320 20 L 340 35 L 360 22 L 380 38 Z"
-          fill="#5a4a35"
-          opacity="0.25"
-        />
-      </svg>
-
-      {/* 中央聚光（高倍率时） */}
-      {highlight && (
-        <div
-          className="absolute left-1/2 bottom-0 pointer-events-none"
-          style={{
-            width: '75%',
-            height: '85%',
-            transform: 'translateX(-50%)',
-            background:
-              'radial-gradient(ellipse at center, rgba(212,175,55,0.25) 0%, transparent 60%)',
-          }}
-        />
-      )}
-
-      {/* 5 个牌位排列 */}
-      <div
-        className="absolute left-0 right-0 flex justify-center items-center h-full px-3"
-        style={{ gap: GAP }}
-      >
-        {cards.map((c, si) => (
-          <SlotDroppable
-            key={si}
-            teamIndex={teamIndex}
-            slotIndex={si}
-            card={c}
-            width={cardW}
-            highlight={highlight}
-            index={si}
-          />
-        ))}
-      </div>
-    </div>
-  );
-});
-Field3DStage.displayName = 'Field3DStage';
-
-/** 单兵位 droppable + draggable 结合 */
-function SlotDroppable({
+/** 单个槽位的 HTML 交互层（透明，负责拖拽 + 悬停） */
+function SlotInteractionLayer({
   teamIndex,
   slotIndex,
   card,
-  width,
-  highlight,
-  index,
+  onHoverChange,
 }: {
   teamIndex: number;
   slotIndex: number;
   card: Card | null;
-  width: number;
-  highlight: boolean;
-  index: number;
+  onHoverChange: (hover: boolean) => void;
 }) {
   const { setNodeRef: setDropRef, isOver } = useDroppable({
     id: `team-${teamIndex}-${slotIndex}`,
     data: { type: 'team', teamIndex, slotIndex },
   });
 
+  useEffect(() => {
+    onHoverChange(isOver);
+  }, [isOver, onHoverChange]);
+
   return (
-    <div
-      ref={setDropRef}
-      className="relative shrink-0 flex items-center justify-center"
-      style={{ width: width * 0.98 }}
-    >
-      <AnimatePresence mode="wait">
-        {card ? (
-          <DraggableTile
-            key={card.id}
-            card={card}
-            width={width}
-            highlight={highlight}
-            index={index}
-            isOver={false}
-          />
-        ) : (
-          <div key="empty" className="pointer-events-none">
-            <SlotTile
-              card={null}
-              width={width}
-              index={index}
-              highlight={false}
-              isOver={isOver}
-            />
-          </div>
-        )}
-      </AnimatePresence>
+    <div ref={setDropRef} className="relative h-full pointer-events-auto">
+      {card && (
+        <DraggableOverlay
+          card={card}
+          slotIndex={slotIndex}
+        />
+      )}
     </div>
   );
 }
 
-/** 已上阵的牌位（整体可拖拽） */
-function DraggableTile({
-  card,
-  width,
-  highlight,
-  index,
-  isOver,
-}: {
-  card: Card;
-  width: number;
-  highlight: boolean;
-  index: number;
-  isOver: boolean;
-}) {
+/** 已上阵武将的拖拽热区（透明，只收触发事件） */
+function DraggableOverlay({ card }: { card: Card; slotIndex: number }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: card.id,
     data: { card },
   });
 
-  const dragStyle: React.CSSProperties = transform
-    ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${isDragging ? 1.08 : 1})`,
-        zIndex: isDragging ? 50 : 'auto',
-      }
-    : {};
+  const style: React.CSSProperties = {
+    position: 'absolute',
+    inset: 0,
+    touchAction: 'none',
+    cursor: isDragging ? 'grabbing' : 'grab',
+    ...(transform
+      ? {
+          transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`,
+          zIndex: 50,
+        }
+      : {}),
+  };
 
-  return (
-    <motion.div
-      ref={setNodeRef}
-      initial={{ y: 30, opacity: 0, scale: 0.6 }}
-      animate={{ y: 0, opacity: 1, scale: 1 }}
-      exit={{ y: -20, opacity: 0, scale: 0.5 }}
-      transition={{ type: 'spring', stiffness: 260, damping: 20 }}
-      style={{
-        ...dragStyle,
-        touchAction: 'none',
-        cursor: isDragging ? 'grabbing' : 'grab',
-        opacity: isDragging ? 0.9 : 1,
-      }}
-      className="relative select-none"
-      {...listeners}
-      {...attributes}
-    >
-      <SlotTile
-        card={card}
-        width={width}
-        index={index}
-        highlight={highlight}
-        isOver={isOver}
-      />
-    </motion.div>
-  );
+  return <div ref={setNodeRef} style={style} {...listeners} {...attributes} />;
 }
