@@ -96,7 +96,6 @@ function WarFlag({
   const m = FACTION_MAT[faction];
   const flagRef = useRef<THREE.Mesh>(null);
   const groupRef = useRef<THREE.Group>(null);
-  const glyphRef = useRef<THREE.Group>(null);
   const ribbonRef = useRef<THREE.Mesh>(null);
 
   // 保存初始顶点位置，用于每帧相对变形
@@ -116,42 +115,40 @@ function WarFlag({
       }
       const init = initialPositions.current;
 
-      // 每个顶点变形：离旗杆越远摆动越大
+      // 每个顶点变形：离旗杆越远摆动越大，最靠旗杆（ix≈0）锁死
       for (let i = 0; i < posAttr.count; i++) {
         const ix = init[i * 3];
         const iy = init[i * 3 + 1];
-        // 旗面左端（靠旗杆）为 x=0，右端（自由端）为 x=flagW
         const flagW = 0.95;
-        const flagH = 0.6;
 
         // 距旗杆的归一化距离 (0~1)
         const distFromPole = ix / flagW;
-        // 距离平方增长 —— 越远摆动越大（自然被风吹）
-        const intensity = Math.pow(distFromPole, 1.4);
+        // 柔和曲线：靠旗杆处 0，远端 1
+        // 使用 smoothstep 避免突然起波
+        const ease = distFromPole < 0.02
+          ? 0
+          : Math.min(1, (distFromPole - 0.02) / 0.98);
+        const intensity = Math.pow(ease, 1.4);
 
-        // 主波（水平方向的 Z 位移：旗面从左向右的波浪）
+        // 主波：旗面水平方向的柔软波浪
         const mainWave = Math.sin(ix * 6 - t * 3.5 + seed) * 0.14 * intensity;
-        // 副波（上下摆动）
+        // 副波：上下摆动
         const subWave = Math.sin(ix * 3.5 - t * 2.2 + seed * 0.8) * 0.06 * intensity;
-        // 垂直微扰（让旗面有皱褶感）
+        // 垂直皱褶
         const vert = Math.cos(iy * 8 + t * 4 + seed) * 0.02 * intensity;
 
-        // Z 轴位移（向前/后弯曲） + Y 轴微扰（皱褶）
+        // X 轴稍稍收缩（旗面被风吹时长度变短的视觉）
+        const xShrink = 1 - 0.015 * intensity;
+
+        posAttr.setX(i, ix * xShrink);
         posAttr.setZ(i, mainWave + subWave + vert);
-        posAttr.setY(i, iy + Math.sin(ix * 4 - t * 2.5) * 0.015 * intensity);
+        posAttr.setY(
+          i,
+          iy + Math.sin(ix * 4 - t * 2.5) * 0.015 * intensity,
+        );
       }
       posAttr.needsUpdate = true;
       geometry.computeVertexNormals();
-    }
-
-    // === 阵营字位置同步旗面中心点的波动 ===
-    if (glyphRef.current) {
-      const wave = Math.sin(0.5 * 6 - t * 3.5 + seed) * 0.14 * Math.pow(0.5, 1.4);
-      const subWave = Math.sin(0.5 * 3.5 - t * 2.2 + seed * 0.8) * 0.06 * Math.pow(0.5, 1.4);
-      glyphRef.current.position.z = wave + subWave;
-      // 字母随旗面主波方向轻微倾斜
-      glyphRef.current.rotation.y = Math.atan2(wave * 0.5, 0.5) * 0.5;
-      glyphRef.current.rotation.z = Math.sin(t * 2.5 + seed) * 0.06;
     }
 
     // === 中部飘带柔软摆动 ===
@@ -170,6 +167,64 @@ function WarFlag({
   const poleH = 2.0;
   const flagW = 0.95;
   const flagH = 0.6;
+
+  // 旗面贴图 —— 用 Canvas 绘制：阵营色底 + 大字 + 金边
+  const flagTexture = useMemo(() => {
+    const c = document.createElement('canvas');
+    c.width = 512;
+    c.height = 320;
+    const ctx = c.getContext('2d')!;
+
+    // 阵营底色渐变
+    const grad = ctx.createLinearGradient(0, 0, 512, 320);
+    grad.addColorStop(0, m.flagDark);
+    grad.addColorStop(0.5, m.flag);
+    grad.addColorStop(1, m.flagDark);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 512, 320);
+
+    // 暗纹布料质感
+    ctx.globalAlpha = 0.15;
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 512; i += 4) {
+      ctx.beginPath();
+      ctx.moveTo(i, 0);
+      ctx.lineTo(i, 320);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+
+    // 旗面金边（内边框）
+    ctx.strokeStyle = m.trim;
+    ctx.lineWidth = 4;
+    ctx.strokeRect(12, 12, 488, 296);
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.6;
+    ctx.strokeRect(20, 20, 472, 280);
+    ctx.globalAlpha = 1;
+
+    // 阵营大字（中心）
+    ctx.font = 'bold 220px "STKaiti", "KaiTi", serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    // 字体描边
+    ctx.lineWidth = 14;
+    ctx.strokeStyle = m.flagDark;
+    ctx.strokeText(faction, 256, 170);
+    // 金色填充
+    const textGrad = ctx.createLinearGradient(0, 80, 0, 260);
+    textGrad.addColorStop(0, '#fff5cc');
+    textGrad.addColorStop(0.5, m.trim);
+    textGrad.addColorStop(1, '#8b6914');
+    ctx.fillStyle = textGrad;
+    ctx.fillText(faction, 256, 170);
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    return tex;
+  }, [faction, m.flag, m.flagDark, m.trim]);
 
   return (
     <group ref={groupRef}>
@@ -254,13 +309,13 @@ function WarFlag({
         <meshStandardMaterial color={m.flagDark} roughness={0.7} />
       </mesh>
 
-      {/* === 旗面主体（顶点波浪动画） === */}
-      {/* 使用 group 包裹，position 偏移让旗面贴在旗杆右侧 */}
+      {/* === 旗面主体（顶点波浪动画 + 字作为贴图） === */}
+      {/* 字作为贴图画在旗面上 —— 会跟随顶点一起弯曲 */}
       <group position={[0.025, poleH - flagH / 2 - 0.1, 0]}>
         <mesh ref={flagRef} position={[flagW / 2, 0, 0]}>
           <planeGeometry args={[flagW, flagH, 24, 12]} />
           <meshStandardMaterial
-            color={m.flag}
+            map={flagTexture}
             side={THREE.DoubleSide}
             roughness={0.6}
             metalness={0.02}
@@ -269,34 +324,6 @@ function WarFlag({
             flatShading={false}
           />
         </mesh>
-
-        {/* 阵营字 —— 跟随旗面中心点浮动 */}
-        <group ref={glyphRef} position={[flagW / 2, 0, 0.002]}>
-          <Text
-            fontSize={0.36}
-            color={m.trim}
-            anchorX="center"
-            anchorY="middle"
-            outlineColor={m.flagDark}
-            outlineWidth={0.025}
-            fontWeight="bold"
-          >
-            {faction}
-          </Text>
-          <Text
-            position={[0, 0, -0.004]}
-            rotation={[0, Math.PI, 0]}
-            fontSize={0.36}
-            color={m.trim}
-            anchorX="center"
-            anchorY="middle"
-            outlineColor={m.flagDark}
-            outlineWidth={0.025}
-            fontWeight="bold"
-          >
-            {faction}
-          </Text>
-        </group>
       </group>
 
       {/* === 中部飘带 === */}
@@ -579,9 +606,9 @@ function Scene({
   const { camera } = useThree();
 
   useEffect(() => {
-    // 透视相机：斜俯视（参考图视角），fov 40 给自然的近大远小
-    camera.position.set(0, 5.5, 4.5);
-    camera.lookAt(0, 0, 0.2);
+    // 透视相机：斜俯视（参考图视角），拉远一点看全
+    camera.position.set(0, 7, 6.5);
+    camera.lookAt(0, 0, 0);
   }, [camera]);
 
   return (
@@ -905,8 +932,8 @@ export function BattleField3D({
           >
             <PerspectiveCamera
               makeDefault
-              position={[0, 5.5, 4.5]}
-              fov={40}
+              position={[0, 7, 6.5]}
+              fov={38}
               near={0.1}
               far={100}
             />
