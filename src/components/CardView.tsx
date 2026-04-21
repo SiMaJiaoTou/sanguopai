@@ -67,10 +67,10 @@ export function CardView({
       whileHover={!isDragging ? { y: -6, scale: 1.04 } : undefined}
       className={[
         'relative select-none cursor-grab active:cursor-grabbing shrink-0 touch-none',
-        'rounded-xl ring-2',
+        'rounded-lg ring-2',
         theme.bg,
         theme.ring,
-        'shadow-card',
+        'shadow-card-deep',
         isDragging ? 'opacity-80 shadow-glow' : '',
         highlight ? 'animate-shine' : '',
         'p-2 flex flex-col justify-between',
@@ -80,6 +80,9 @@ export function CardView({
       {...listeners}
       {...attributes}
     >
+      {/* 内边金线装饰 */}
+      <div className="absolute inset-1 rounded-md border border-gold/30 pointer-events-none" />
+
       {/* 顶部：阵营 + 点数 */}
       <div className={`flex items-start justify-between ${theme.accent}`}>
         <div className="flex flex-col leading-none">

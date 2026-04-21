@@ -48,22 +48,40 @@ export function TeamPanel({ teamIndex, cards, evalResult, canRedraw, onRedraw }:
     <motion.div
       layout
       className={[
-        'rounded-2xl p-4 bg-black/40 border min-w-0',
-        highlight ? 'border-gold shadow-glow' : 'border-white/10',
+        'relative rounded-2xl p-4 min-w-0 scroll-paper',
+        'bg-gradient-to-b from-[#2a1810]/90 to-[#14100a]/95',
+        'border-2',
+        highlight
+          ? 'border-gold shadow-glow'
+          : 'border-amber-900/60 shadow-card-deep',
       ].join(' ')}
     >
+      {/* 角落青铜装饰 */}
+      <div className="absolute top-0 left-0 w-3 h-3 border-l-2 border-t-2 border-gold/60 rounded-tl-xl" />
+      <div className="absolute top-0 right-0 w-3 h-3 border-r-2 border-t-2 border-gold/60 rounded-tr-xl" />
+      <div className="absolute bottom-0 left-0 w-3 h-3 border-l-2 border-b-2 border-gold/60 rounded-bl-xl" />
+      <div className="absolute bottom-0 right-0 w-3 h-3 border-r-2 border-b-2 border-gold/60 rounded-br-xl" />
+
       <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">
-          <div className="text-gold font-bold text-lg">第 {teamIndex + 1} 军</div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-red-400 text-base">㊉</span>
+            <div className="text-gold-grad font-bold text-base sm:text-lg tracking-widest font-kai">
+              {teamIndex === 0 ? '前军' : '后军'}
+            </div>
+          </div>
           {full && evalResult ? (
             <div className="flex items-center gap-1.5 flex-wrap">
               <motion.span
                 key={evalResult.rankType.key}
-                initial={{ scale: 0.6, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
+                initial={{ scale: 0.6, opacity: 0, y: -4 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                transition={{ type: 'spring', stiffness: 260 }}
                 className={[
-                  'px-2 py-0.5 rounded-md text-xs font-bold',
-                  'bg-white/10 text-white',
+                  'px-3 py-1 rounded-md text-sm sm:text-base font-black border-2 font-kai tracking-widest',
+                  highlight
+                    ? 'bg-gradient-to-b from-amber-300 to-amber-600 text-ink border-gold shadow-glow'
+                    : 'bg-amber-950/80 text-amber-50 border-amber-700/60',
                 ].join(' ')}
               >
                 {evalResult.rankType.name}
@@ -72,28 +90,28 @@ export function TeamPanel({ teamIndex, cards, evalResult, canRedraw, onRedraw }:
                 <motion.span
                   initial={{ scale: 0.6, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
-                  className="px-2 py-0.5 rounded-md text-xs font-bold bg-gold text-ink"
+                  className="px-2 py-1 rounded-md text-sm font-black bg-gradient-to-r from-red-500 to-red-700 text-white border-2 border-red-300 shadow-glow-red font-kai tracking-widest"
                 >
-                  同花
+                  ◆ 同花
                 </motion.span>
               )}
             </div>
           ) : (
-            <span className="text-xs text-white/40">配队中…</span>
+            <span className="text-xs text-amber-100/40 italic">· 配队中 ·</span>
           )}
         </div>
 
         <div className="text-right">
-          <div className="text-[11px] text-white/50">军团战力</div>
+          <div className="text-[10px] text-amber-200/50 tracking-widest">军团战力</div>
           <AnimatePresence mode="wait">
             <motion.div
               key={evalResult?.power ?? 0}
-              initial={{ y: -6, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
+              initial={{ y: -6, opacity: 0, scale: 1.4 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
               exit={{ y: 6, opacity: 0 }}
               className={[
-                'text-2xl font-black tabular-nums',
-                highlight ? 'text-gold animate-shine' : 'text-white',
+                'text-3xl sm:text-4xl font-black tabular-nums font-kai leading-none',
+                highlight ? 'text-gold-grad animate-shine' : 'text-amber-100',
               ].join(' ')}
             >
               {full && evalResult ? evalResult.power : 0}
@@ -109,41 +127,47 @@ export function TeamPanel({ teamIndex, cards, evalResult, canRedraw, onRedraw }:
           initial={{ opacity: 0, y: -4 }}
           animate={{ opacity: 1, y: 0 }}
           className={[
-            'mb-3 px-3 py-2 rounded-lg text-[11px] leading-tight',
-            'bg-black/30 border border-white/10',
+            'mb-3 px-3 py-2 rounded-lg text-sm leading-tight',
+            'bg-gradient-to-r from-black/60 via-amber-950/40 to-black/60',
+            'border border-amber-800/50',
           ].join(' ')}
         >
-          <div className="flex items-center justify-center gap-1.5 font-mono flex-wrap">
-            <span className="text-white/60">{evalResult.pointSum}</span>
-            <span className="text-white/40">×</span>
-            <span className="text-white/40">(</span>
-            <span className="text-emerald-300">{evalResult.rankType.score}</span>
-            <span className="text-white/40">+</span>
-            <span className={evalResult.isFlush ? 'text-gold font-bold' : 'text-white/35'}>
-              {evalResult.suitBonus}
-            </span>
-            <span className="text-white/40">)</span>
-            <span className="text-white/40">=</span>
+          <div className="flex items-center justify-center gap-2 font-kai font-black flex-wrap text-lg sm:text-xl">
+            <span className="text-emerald-300 tabular-nums">{evalResult.pointSum}</span>
+            <span className="text-amber-200/50 text-base">×</span>
+            <span className="text-amber-200/50 text-base">(</span>
+            <span className="text-emerald-300 tabular-nums">{evalResult.rankType.score}</span>
+            <span className="text-amber-200/50 text-base">+</span>
             <span
               className={[
-                'font-black',
-                evalResult.capped ? 'text-red-300 line-through' : 'text-gold',
+                'tabular-nums',
+                evalResult.isFlush ? 'text-gold' : 'text-amber-200/40',
+              ].join(' ')}
+            >
+              {evalResult.suitBonus}
+            </span>
+            <span className="text-amber-200/50 text-base">)</span>
+            <span className="text-amber-200/50 text-base">=</span>
+            <span
+              className={[
+                'tabular-nums',
+                evalResult.capped ? 'text-red-400 line-through' : 'text-gold-grad',
               ].join(' ')}
             >
               {evalResult.rawPower}
             </span>
             {evalResult.capped && (
               <>
-                <span className="text-white/40">→</span>
-                <span className="text-red-300 font-black">{POWER_CAP}</span>
-                <span className="text-[9px] text-red-300/80 px-1 py-0 rounded bg-red-500/20 border border-red-400/40">
+                <span className="text-amber-200/50 text-base">→</span>
+                <span className="text-red-400 tabular-nums">{POWER_CAP}</span>
+                <span className="text-[10px] text-red-300 px-1.5 py-0.5 rounded bg-red-500/20 border border-red-400/60 font-bold tracking-widest">
                   封顶
                 </span>
               </>
             )}
           </div>
-          <div className="text-center text-[9px] text-white/35 mt-1">
-            点数和 × (点数牌型值 + 同花加成) = 战力{evalResult.capped && '（上限 803）'}
+          <div className="text-center text-[10px] text-amber-200/40 mt-1 italic">
+            点数和 × (点数牌型值 + 同花加成) = 战力{evalResult.capped && ' · 最高 803'}
           </div>
         </motion.div>
       )}

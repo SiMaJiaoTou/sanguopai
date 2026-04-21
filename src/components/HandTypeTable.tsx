@@ -34,23 +34,32 @@ export function HandTypeTable({ activeRankKeys = [], anyFlush = false }: Props) 
   const [expanded, setExpanded] = useState(true);
 
   return (
-    <div className="rounded-2xl bg-black/40 border border-white/10 p-4">
+    <div
+      className={[
+        'relative rounded-2xl p-4 scroll-paper',
+        'bg-gradient-to-b from-[#2a1810] to-[#14100a]',
+        'border-2 border-amber-800/60 shadow-card-deep',
+      ].join(' ')}
+    >
       <div className="flex items-center justify-between mb-2">
-        <div className="text-gold font-bold">📜 牌型加成表</div>
+        <div className="flex items-center gap-2">
+          <span className="text-red-400">㊉</span>
+          <div className="text-gold-grad font-bold tracking-[0.2em] font-kai">兵 法 谱</div>
+        </div>
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="text-[10px] px-2 py-0.5 rounded border border-white/15 text-white/60 hover:text-gold hover:border-gold/60"
+          className="text-[10px] px-2 py-0.5 rounded border border-amber-700/50 text-amber-200/60 hover:text-gold hover:border-gold/60 touch-manipulation"
         >
-          {expanded ? '隐藏注释 ▴' : '展开注释 ▾'}
+          {expanded ? '隐注 ▴' : '展注 ▾'}
         </button>
       </div>
-      <div className="text-[10px] text-white/40 mb-2">
-        战力 = 点数和 × (点数牌型值 + 同花加成)，上限 {POWER_CAP}
+      <div className="text-[10px] text-amber-200/50 mb-3 italic">
+        战力 = 点数和 × (点数牌型 + 同花加成) · 上限 {POWER_CAP}
       </div>
 
-      {/* 乘区 1：点数牌型 */}
-      <div className="text-[11px] text-white/55 mb-1 pl-1 tracking-widest">
-        乘区 1 · 点数牌型（互斥取最高）
+      {/* 乘区 1 */}
+      <div className="text-[10px] text-amber-200/60 mb-1.5 pl-1 tracking-[0.25em] font-kai">
+        ◈ 乘区一 · 点数牌型（互斥取最高）
       </div>
       <div className="grid grid-cols-1 gap-1 mb-3">
         {ORDERED.map((k) => {
@@ -130,8 +139,8 @@ export function HandTypeTable({ activeRankKeys = [], anyFlush = false }: Props) 
       </div>
 
       {/* 乘区 2：花色加成 */}
-      <div className="text-[11px] text-white/55 mb-1 pl-1 tracking-widest">
-        乘区 2 · 花色加成（叠加项）
+      <div className="text-[10px] text-amber-200/60 mb-1.5 pl-1 tracking-[0.25em] font-kai">
+        ◈ 乘区二 · 花色加成（叠加项）
       </div>
       <motion.div
         layout
@@ -192,8 +201,8 @@ export function HandTypeTable({ activeRankKeys = [], anyFlush = false }: Props) 
         </AnimatePresence>
       </motion.div>
 
-      <div className="mt-3 text-[10px] text-white/35 leading-relaxed border-t border-white/5 pt-2">
-        💡 范例：打出「同花3+2」→ (6 + 5) = 11 倍区
+      <div className="mt-3 text-[10px] text-amber-100/40 leading-relaxed border-t border-amber-900/40 pt-2 italic">
+        ◈ 范例：打出「同花3+2」→ 乘区 (6 + 5) = 11
       </div>
     </div>
   );

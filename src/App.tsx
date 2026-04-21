@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   DragEndEvent,
@@ -31,6 +31,7 @@ import { HandTypeTable } from './components/HandTypeTable';
 import { PowerChart } from './components/PowerChart';
 import { RecruitPanel } from './components/RecruitPanel';
 import { Toast } from './components/Toast';
+import { HandEffect, buildEffect, type EffectTrigger } from './components/HandEffect';
 
 function findCardById(
   hand: Card[],
@@ -46,6 +47,9 @@ function findCardById(
 export default function App() {
   const state = useGameStore();
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [effect, setEffect] = useState<EffectTrigger | null>(null);
+  // 记录上一次触发过特效的牌型签名，避免重复播放
+  const lastEffectSig = useRef<string>('');
 
   useEffect(() => {
     if (state.hand.length === 0 && state.deck.length === 0 && state.round === 0 && state.gold === 0) {
@@ -79,6 +83,40 @@ export default function App() {
 
   const anyFlush =
     (team0Eval?.isFlush ?? false) || (teamsRequired >= 2 && (team1Eval?.isFlush ?? false));
+
+  // 监测牌型首次触发 → 播放特效
+  // 策略：每当 team0/team1 的 (rankType.key + isFlush + 队伍配置) 签名变化时，选择最高等级的那个触发特效
+  useEffect(() => {
+    // 只有 5 张时才可能触发
+    const candidates: { key: RankTypeKey; name: string; flush: boolean; score: number }[] = [];
+    if (team0Eval)
+      candidates.push({
+        key: team0Eval.rankType.key,
+        name: team0Eval.rankType.name,
+        flush: team0Eval.isFlush,
+        score: team0Eval.rankType.score + team0Eval.suitBonus,
+      });
+    if (team1Eval && teamsRequired >= 2)
+      candidates.push({
+        key: team1Eval.rankType.key,
+        name: team1Eval.rankType.name,
+        flush: team1Eval.isFlush,
+        score: team1Eval.rankType.score + team1Eval.suitBonus,
+      });
+    if (candidates.length === 0) {
+      lastEffectSig.current = '';
+      return;
+    }
+    // 选最高分
+    candidates.sort((a, b) => b.score - a.score);
+    const top = candidates[0];
+    const sig = `${top.key}|${top.flush}`;
+    if (sig === lastEffectSig.current) return;
+    lastEffectSig.current = sig;
+    // 散牌 / 一对 不触发特效（tier 太低，避免刷屏）
+    if (top.key === 'HIGH_CARD') return;
+    setEffect(buildEffect(top.key, top.name, top.flush));
+  }, [team0Eval, team1Eval, teamsRequired]);
 
   const requiredTeamsFull = useMemo(() => {
     for (let ti = 0; ti < teamsRequired; ti++) {
@@ -181,6 +219,8 @@ export default function App() {
 
       <Toast message={state.lastMessage} onClose={state.clearMessage} />
 
+      <HandEffect trigger={effect} onDone={() => setEffect(null)} />
+
       <DndContext
         sensors={sensors}
         onDragStart={onDragStart}
@@ -279,9 +319,9 @@ export default function App() {
               onRedraw={state.redraw}
             />
 
-            <div className="text-[11px] text-white/40 leading-relaxed border-t border-white/5 pt-3">
-              本回合目标：填满 <span className="text-gold">{teamsRequired}</span> 队 ·
-              手牌 {state.hand.length + state.teams.flat().filter(Boolean).length} 张 ·
+            <div className="text-[11px] text-amber-200/50 leading-relaxed border-t border-amber-900/30 pt-3 italic">
+              ◈ 本年目标：填满 <span className="text-gold font-bold">{teamsRequired}</span> 队 ·
+              手牌 <span className="text-gold tabular-nums">{state.hand.length + state.teams.flat().filter(Boolean).length}</span> 员 ·
               战力 = <span className="text-emerald-300">点数和</span> ×
               (<span className="text-emerald-300">点数牌型</span> +
               <span className="text-gold">同花加成</span>)，上限 <span className="text-red-300">803</span>
