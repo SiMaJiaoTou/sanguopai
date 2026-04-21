@@ -97,58 +97,152 @@ function WarFlag({
   const flagRef = useRef<THREE.Mesh>(null);
   const groupRef = useRef<THREE.Group>(null);
   const glyphRef = useRef<THREE.Group>(null);
+  const ribbonRef = useRef<THREE.Mesh>(null);
 
   useFrame((state) => {
     const t = state.clock.getElapsedTime();
     if (flagRef.current) {
-      // 旗帜飘动（波浪变形需要 shader，这里用旋转模拟）
       flagRef.current.rotation.y = Math.sin(t * 1.5 + seed) * 0.35;
       flagRef.current.rotation.z = Math.sin(t * 2.2 + seed * 0.7) * 0.08;
     }
     if (glyphRef.current) {
-      // 旗字跟随旗面旋转
       glyphRef.current.rotation.y = Math.sin(t * 1.5 + seed) * 0.35;
+    }
+    if (ribbonRef.current) {
+      ribbonRef.current.rotation.z =
+        Math.PI / 16 + Math.sin(t * 2.8 + seed) * 0.2;
     }
     if (groupRef.current && highlight) {
       groupRef.current.position.y = Math.sin(t * 2) * 0.03;
     }
   });
 
-  const poleH = 1.9;
+  const poleH = 2.0;
   const flagW = 0.95;
   const flagH = 0.6;
 
   return (
     <group ref={groupRef}>
-      {/* 旗座 */}
-      <Cylinder args={[0.12, 0.15, 0.1, 12]} position={[0, 0.05, 0]}>
-        <meshStandardMaterial color="#3a2418" roughness={0.8} />
+      {/* === 底座：三层结构 === */}
+      {/* 外圈石座 */}
+      <Cylinder args={[0.22, 0.26, 0.06, 16]} position={[0, 0.03, 0]}>
+        <meshStandardMaterial color="#2a1810" roughness={0.95} />
       </Cylinder>
-      <Cylinder args={[0.13, 0.13, 0.02, 12]} position={[0, 0.11, 0]}>
+      {/* 中间青铜环 */}
+      <Cylinder args={[0.18, 0.2, 0.04, 16]} position={[0, 0.08, 0]}>
+        <meshStandardMaterial
+          color="#8b5a28"
+          metalness={0.75}
+          roughness={0.4}
+        />
+      </Cylinder>
+      {/* 金属顶环 */}
+      <Cylinder args={[0.14, 0.16, 0.025, 16]} position={[0, 0.12, 0]}>
+        <meshStandardMaterial
+          color={m.trim}
+          metalness={0.9}
+          roughness={0.2}
+        />
+      </Cylinder>
+      {/* 底座上的 4 个小铆钉 */}
+      {[0, 1, 2, 3].map((i) => {
+        const a = (i / 4) * Math.PI * 2;
+        return (
+          <mesh
+            key={`rivet-${i}`}
+            position={[Math.cos(a) * 0.2, 0.1, Math.sin(a) * 0.2]}
+          >
+            <sphereGeometry args={[0.02, 6, 6]} />
+            <meshStandardMaterial
+              color={m.trim}
+              metalness={1}
+              roughness={0.15}
+            />
+          </mesh>
+        );
+      })}
+
+      {/* === 旗杆（三节结构） === */}
+      {/* 杆下段（粗） */}
+      <Cylinder args={[0.032, 0.035, 0.6, 10]} position={[0, 0.45, 0]}>
+        <meshStandardMaterial color={m.pole} metalness={0.35} roughness={0.55} />
+      </Cylinder>
+      {/* 中节铜箍 */}
+      <Cylinder args={[0.04, 0.04, 0.05, 10]} position={[0, 0.78, 0]}>
         <meshStandardMaterial color={m.trim} metalness={0.9} roughness={0.25} />
       </Cylinder>
-
-      {/* 旗杆 */}
-      <Cylinder args={[0.025, 0.025, poleH, 8]} position={[0, poleH / 2 + 0.1, 0]}>
-        <meshStandardMaterial color={m.pole} metalness={0.4} roughness={0.55} />
+      {/* 杆中段 */}
+      <Cylinder args={[0.028, 0.032, 0.8, 10]} position={[0, 1.2, 0]}>
+        <meshStandardMaterial color={m.pole} metalness={0.35} roughness={0.55} />
+      </Cylinder>
+      {/* 上节铜箍 */}
+      <Cylinder args={[0.036, 0.036, 0.05, 10]} position={[0, 1.65, 0]}>
+        <meshStandardMaterial color={m.trim} metalness={0.9} roughness={0.25} />
+      </Cylinder>
+      {/* 杆上段（细） */}
+      <Cylinder args={[0.022, 0.028, 0.4, 10]} position={[0, 1.9, 0]}>
+        <meshStandardMaterial color={m.pole} metalness={0.35} roughness={0.55} />
       </Cylinder>
 
-      {/* 旗杆顶装饰（金枪尖） */}
-      <mesh position={[0, poleH + 0.15, 0]}>
-        <coneGeometry args={[0.05, 0.18, 8]} />
+      {/* === 旗杆顶：三层枪尖 === */}
+      {/* 下方金球 */}
+      <mesh position={[0, poleH + 0.12, 0]}>
+        <sphereGeometry args={[0.055, 12, 12]} />
         <meshStandardMaterial
           color={m.trim}
           metalness={0.95}
           roughness={0.15}
           emissive={m.trim}
-          emissiveIntensity={highlight ? 0.4 : 0.15}
+          emissiveIntensity={highlight ? 0.5 : 0.2}
+        />
+      </mesh>
+      {/* 过渡环 */}
+      <Cylinder args={[0.04, 0.04, 0.04, 10]} position={[0, poleH + 0.19, 0]}>
+        <meshStandardMaterial color={m.trim} metalness={1} roughness={0.1} />
+      </Cylinder>
+      {/* 主枪尖 */}
+      <mesh position={[0, poleH + 0.3, 0]}>
+        <coneGeometry args={[0.05, 0.22, 10]} />
+        <meshStandardMaterial
+          color={m.trim}
+          metalness={0.98}
+          roughness={0.1}
+          emissive={m.trim}
+          emissiveIntensity={highlight ? 0.6 : 0.25}
+        />
+      </mesh>
+      {/* 尖顶小珠 */}
+      <mesh position={[0, poleH + 0.44, 0]}>
+        <sphereGeometry args={[0.018, 8, 8]} />
+        <meshStandardMaterial
+          color={m.trim}
+          metalness={1}
+          roughness={0.1}
+          emissive={m.trim}
+          emissiveIntensity={highlight ? 0.8 : 0.4}
         />
       </mesh>
 
-      {/* 旗面（transform origin 在左边贴旗杆） */}
-      <group position={[0.025, poleH - flagH / 2, 0]}>
+      {/* === 旗面上方绳结 & 飘带 === */}
+      {/* 旗面连接绳结 */}
+      <mesh position={[0.04, poleH - 0.08, 0]}>
+        <sphereGeometry args={[0.03, 6, 6]} />
+        <meshStandardMaterial color={m.flagDark} roughness={0.7} />
+      </mesh>
+      {/* 旗面下缘流苏 */}
+      <mesh position={[0.5, poleH - flagH - 0.08, 0]}>
+        <planeGeometry args={[flagW * 0.9, 0.05]} />
+        <meshStandardMaterial
+          color={m.trim}
+          side={THREE.DoubleSide}
+          roughness={0.6}
+        />
+      </mesh>
+
+      {/* === 旗面 === */}
+      <group position={[0.025, poleH - flagH / 2 - 0.1, 0]}>
         <mesh ref={flagRef} position={[flagW / 2, 0, 0]}>
-          <planeGeometry args={[flagW, flagH, 8, 4]} />
+          <planeGeometry args={[flagW, flagH, 12, 6]} />
           <meshStandardMaterial
             color={m.flag}
             side={THREE.DoubleSide}
@@ -158,12 +252,26 @@ function WarFlag({
             emissiveIntensity={highlight ? 0.35 : 0.15}
           />
         </mesh>
-        {/* 旗面金边（正面 / 背面双层） */}
-        <mesh position={[flagW / 2, 0, 0.001]}>
-          <planeGeometry args={[flagW * 0.94, flagH * 0.9]} />
-          <meshBasicMaterial color={m.trim} transparent opacity={0.25} side={THREE.DoubleSide} />
+        {/* 旗面金边（上下两条） */}
+        <mesh position={[flagW / 2, flagH / 2 - 0.015, 0.002]}>
+          <planeGeometry args={[flagW * 0.95, 0.025]} />
+          <meshBasicMaterial
+            color={m.trim}
+            transparent
+            opacity={0.7}
+            side={THREE.DoubleSide}
+          />
         </mesh>
-        {/* 阵营字 - 立体字 */}
+        <mesh position={[flagW / 2, -flagH / 2 + 0.015, 0.002]}>
+          <planeGeometry args={[flagW * 0.95, 0.025]} />
+          <meshBasicMaterial
+            color={m.trim}
+            transparent
+            opacity={0.7}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+        {/* 阵营字 */}
         <group ref={glyphRef} position={[flagW / 2, 0, 0.01]}>
           <Text
             fontSize={0.38}
@@ -171,12 +279,11 @@ function WarFlag({
             anchorX="center"
             anchorY="middle"
             outlineColor={m.flagDark}
-            outlineWidth={0.02}
+            outlineWidth={0.025}
             fontWeight="bold"
           >
             {faction}
           </Text>
-          {/* 背面字（翻转） */}
           <Text
             position={[0, 0, -0.02]}
             rotation={[0, Math.PI, 0]}
@@ -185,7 +292,7 @@ function WarFlag({
             anchorX="center"
             anchorY="middle"
             outlineColor={m.flagDark}
-            outlineWidth={0.02}
+            outlineWidth={0.025}
             fontWeight="bold"
           >
             {faction}
@@ -193,10 +300,19 @@ function WarFlag({
         </group>
       </group>
 
-      {/* 旗下彩带装饰（飘在旗杆中部） */}
-      <mesh position={[0, poleH * 0.4, 0]} rotation={[0, 0, Math.PI / 16]}>
-        <planeGeometry args={[0.12, 0.3]} />
-        <meshStandardMaterial color={m.flagLight} side={THREE.DoubleSide} roughness={0.6} />
+      {/* === 中部飘带（动态飘扬） === */}
+      <mesh
+        ref={ribbonRef}
+        position={[0, poleH * 0.45, 0]}
+      >
+        <planeGeometry args={[0.14, 0.42]} />
+        <meshStandardMaterial
+          color={m.flagLight}
+          side={THREE.DoubleSide}
+          roughness={0.5}
+          emissive={m.flagLight}
+          emissiveIntensity={0.15}
+        />
       </mesh>
     </group>
   );
@@ -286,26 +402,14 @@ function SlotTile({
   isOver: boolean;
   highlight: boolean;
 }) {
-  const shape = useMemo(() => {
-    const s = new THREE.Shape();
-    const nearW = TILE_W / 2;
-    const farW = TILE_W / 2 * 0.8;
-    const halfH = TILE_H / 2;
-    s.moveTo(-nearW, halfH);
-    s.lineTo(nearW, halfH);
-    s.lineTo(farW, -halfH);
-    s.lineTo(-farW, -halfH);
-    s.closePath();
-    return s;
-  }, []);
-
+  // 规则矩形牌位（透视变形由 3D 相机自然产生）
   const borderColor = isOver ? '#fef3c7' : highlight ? '#fbbf24' : '#8b6914';
 
   return (
     <group position={[position.x, 0.002, position.z]} rotation={[-Math.PI / 2, 0, 0]}>
-      {/* 内部透明底 */}
+      {/* 内部半透明底 */}
       <mesh>
-        <shapeGeometry args={[shape]} />
+        <planeGeometry args={[TILE_W, TILE_H]} />
         <meshStandardMaterial
           color={isOver ? '#fef3c7' : empty ? '#c9b995' : '#e8dcc0'}
           transparent
@@ -313,16 +417,34 @@ function SlotTile({
           roughness={0.95}
         />
       </mesh>
-      {/* 金色描边 */}
+      {/* 外金边（粗） */}
       <lineSegments>
-        <edgesGeometry args={[new THREE.ShapeGeometry(shape)]} />
+        <edgesGeometry args={[new THREE.PlaneGeometry(TILE_W, TILE_H)]} />
         <lineBasicMaterial color={borderColor} />
       </lineSegments>
-      {/* 内层细边 */}
+      {/* 内金边（细） */}
       <lineSegments scale={[0.92, 0.88, 1]} position={[0, 0, 0.001]}>
-        <edgesGeometry args={[new THREE.ShapeGeometry(shape)]} />
-        <lineBasicMaterial color={borderColor} transparent opacity={0.5} />
+        <edgesGeometry args={[new THREE.PlaneGeometry(TILE_W, TILE_H)]} />
+        <lineBasicMaterial color={borderColor} transparent opacity={0.55} />
       </lineSegments>
+      {/* 四角 L 型装饰 */}
+      {([
+        [-1, 1],
+        [1, 1],
+        [-1, -1],
+        [1, -1],
+      ] as [number, number][]).map(([sx, sy], i) => (
+        <group key={i} position={[sx * (TILE_W / 2 - 0.08), sy * (TILE_H / 2 - 0.08), 0.002]}>
+          <mesh>
+            <planeGeometry args={[0.12, 0.02]} />
+            <meshBasicMaterial color={borderColor} transparent opacity={0.75} />
+          </mesh>
+          <mesh>
+            <planeGeometry args={[0.02, 0.12]} />
+            <meshBasicMaterial color={borderColor} transparent opacity={0.75} />
+          </mesh>
+        </group>
+      ))}
 
       {empty && (
         <Text
@@ -509,37 +631,127 @@ function Scene({
         ) : null,
       )}
 
-      {/* 战力数字（右前角） */}
+      {/* 战力数字（大号立体牌匾，悬浮在格子上方前侧） */}
       {cards.map((c, i) =>
         c ? (
-          <group
+          <PowerBanner
             key={`p-${c.id}`}
-            position={[SLOT_LAYOUT[i].x + TILE_W * 0.35, 0.01, SLOT_LAYOUT[i].z + TILE_H * 0.5]}
-            rotation={[-Math.PI / 2.5, 0, 0]}
-          >
-            <mesh>
-              <planeGeometry args={[0.4, 0.2]} />
-              <meshStandardMaterial color="#1a0f08" roughness={0.7} />
-            </mesh>
-            <mesh position={[0, 0, 0.001]}>
-              <planeGeometry args={[0.42, 0.22]} />
-              <meshBasicMaterial color="#d4af37" transparent opacity={0.35} />
-            </mesh>
-            <Text
-              position={[0, 0, 0.005]}
-              fontSize={0.13}
-              color="#fde68a"
-              anchorX="center"
-              anchorY="middle"
-              outlineColor="#000"
-              outlineWidth={0.005}
-            >
-              {c.pointValue}
-            </Text>
-          </group>
+            value={c.pointValue}
+            faction={c.faction}
+            position={[
+              SLOT_LAYOUT[i].x,
+              0.9,
+              SLOT_LAYOUT[i].z + TILE_H * 0.55,
+            ]}
+          />
         ) : null,
       )}
     </>
+  );
+}
+
+/** 大号战力牌匾（billboard 式始终面向相机） */
+function PowerBanner({
+  value,
+  faction,
+  position,
+}: {
+  value: number;
+  faction: Faction;
+  position: [number, number, number];
+}) {
+  const m = FACTION_MAT[faction];
+  const ref = useRef<THREE.Group>(null);
+
+  useFrame((state) => {
+    if (ref.current) {
+      const t = state.clock.getElapsedTime();
+      // 轻微上下浮动
+      ref.current.position.y = position[1] + Math.sin(t * 1.5) * 0.025;
+    }
+  });
+
+  return (
+    <group ref={ref} position={position} rotation={[-Math.PI / 7, 0, 0]}>
+      {/* 背板阴影（后方深板） */}
+      <mesh position={[0, 0, -0.02]}>
+        <planeGeometry args={[0.82, 0.48]} />
+        <meshBasicMaterial color="#000" transparent opacity={0.5} />
+      </mesh>
+      {/* 外金边 */}
+      <mesh position={[0, 0, -0.005]}>
+        <planeGeometry args={[0.78, 0.44]} />
+        <meshStandardMaterial
+          color={m.trim}
+          metalness={0.95}
+          roughness={0.15}
+          emissive={m.trim}
+          emissiveIntensity={0.3}
+        />
+      </mesh>
+      {/* 阵营色内底 */}
+      <mesh position={[0, 0, 0]}>
+        <planeGeometry args={[0.72, 0.38]} />
+        <meshStandardMaterial
+          color={m.badge}
+          roughness={0.6}
+          emissive={m.flagDark}
+          emissiveIntensity={0.3}
+        />
+      </mesh>
+      {/* 内金线 */}
+      <mesh position={[0, 0, 0.001]}>
+        <planeGeometry args={[0.68, 0.34]} />
+        <meshBasicMaterial
+          color={m.trim}
+          transparent
+          opacity={0.25}
+        />
+      </mesh>
+      {/* 四角小铆钉装饰 */}
+      {([
+        [-1, 1],
+        [1, 1],
+        [-1, -1],
+        [1, -1],
+      ] as [number, number][]).map(([sx, sy], i) => (
+        <mesh key={i} position={[sx * 0.32, sy * 0.17, 0.002]}>
+          <circleGeometry args={[0.022, 12]} />
+          <meshStandardMaterial
+            color={m.trim}
+            metalness={1}
+            roughness={0.1}
+            emissive={m.trim}
+            emissiveIntensity={0.4}
+          />
+        </mesh>
+      ))}
+      {/* 战力数字（超大） */}
+      <Text
+        position={[0, 0.01, 0.003]}
+        fontSize={0.3}
+        color="#fef3c7"
+        anchorX="center"
+        anchorY="middle"
+        outlineColor="#000"
+        outlineWidth={0.018}
+        fontWeight="bold"
+      >
+        {value}
+      </Text>
+      {/* 标签"战"字 */}
+      <Text
+        position={[-0.3, 0.14, 0.003]}
+        fontSize={0.08}
+        color={m.trim}
+        anchorX="center"
+        anchorY="middle"
+        outlineColor="#000"
+        outlineWidth={0.005}
+      >
+        戰
+      </Text>
+    </group>
   );
 }
 
