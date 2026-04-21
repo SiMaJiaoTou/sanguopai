@@ -99,19 +99,69 @@ function WarFlag({
   const glyphRef = useRef<THREE.Group>(null);
   const ribbonRef = useRef<THREE.Mesh>(null);
 
+  // 保存初始顶点位置，用于每帧相对变形
+  const initialPositions = useRef<Float32Array | null>(null);
+
   useFrame((state) => {
     const t = state.clock.getElapsedTime();
+
+    // === 旗面顶点波浪动画（柔软飘动）===
     if (flagRef.current) {
-      flagRef.current.rotation.y = Math.sin(t * 1.5 + seed) * 0.35;
-      flagRef.current.rotation.z = Math.sin(t * 2.2 + seed * 0.7) * 0.08;
+      const geometry = flagRef.current.geometry as THREE.PlaneGeometry;
+      const posAttr = geometry.attributes.position;
+
+      // 初次帧缓存原始顶点
+      if (!initialPositions.current) {
+        initialPositions.current = new Float32Array(posAttr.array);
+      }
+      const init = initialPositions.current;
+
+      // 每个顶点变形：离旗杆越远摆动越大
+      for (let i = 0; i < posAttr.count; i++) {
+        const ix = init[i * 3];
+        const iy = init[i * 3 + 1];
+        // 旗面左端（靠旗杆）为 x=0，右端（自由端）为 x=flagW
+        const flagW = 0.95;
+        const flagH = 0.6;
+
+        // 距旗杆的归一化距离 (0~1)
+        const distFromPole = ix / flagW;
+        // 距离平方增长 —— 越远摆动越大（自然被风吹）
+        const intensity = Math.pow(distFromPole, 1.4);
+
+        // 主波（水平方向的 Z 位移：旗面从左向右的波浪）
+        const mainWave = Math.sin(ix * 6 - t * 3.5 + seed) * 0.14 * intensity;
+        // 副波（上下摆动）
+        const subWave = Math.sin(ix * 3.5 - t * 2.2 + seed * 0.8) * 0.06 * intensity;
+        // 垂直微扰（让旗面有皱褶感）
+        const vert = Math.cos(iy * 8 + t * 4 + seed) * 0.02 * intensity;
+
+        // Z 轴位移（向前/后弯曲） + Y 轴微扰（皱褶）
+        posAttr.setZ(i, mainWave + subWave + vert);
+        posAttr.setY(i, iy + Math.sin(ix * 4 - t * 2.5) * 0.015 * intensity);
+      }
+      posAttr.needsUpdate = true;
+      geometry.computeVertexNormals();
     }
+
+    // === 阵营字位置同步旗面中心点的波动 ===
     if (glyphRef.current) {
-      glyphRef.current.rotation.y = Math.sin(t * 1.5 + seed) * 0.35;
+      const wave = Math.sin(0.5 * 6 - t * 3.5 + seed) * 0.14 * Math.pow(0.5, 1.4);
+      const subWave = Math.sin(0.5 * 3.5 - t * 2.2 + seed * 0.8) * 0.06 * Math.pow(0.5, 1.4);
+      glyphRef.current.position.z = wave + subWave;
+      // 字母随旗面主波方向轻微倾斜
+      glyphRef.current.rotation.y = Math.atan2(wave * 0.5, 0.5) * 0.5;
+      glyphRef.current.rotation.z = Math.sin(t * 2.5 + seed) * 0.06;
     }
+
+    // === 中部飘带柔软摆动 ===
     if (ribbonRef.current) {
       ribbonRef.current.rotation.z =
-        Math.PI / 16 + Math.sin(t * 2.8 + seed) * 0.2;
+        Math.PI / 16 + Math.sin(t * 2.2 + seed) * 0.25;
+      ribbonRef.current.rotation.x = Math.sin(t * 1.8 + seed * 0.5) * 0.15;
     }
+
+    // === 高倍率时整体呼吸 ===
     if (groupRef.current && highlight) {
       groupRef.current.position.y = Math.sin(t * 2) * 0.03;
     }
@@ -124,27 +174,15 @@ function WarFlag({
   return (
     <group ref={groupRef}>
       {/* === 底座：三层结构 === */}
-      {/* 外圈石座 */}
       <Cylinder args={[0.22, 0.26, 0.06, 16]} position={[0, 0.03, 0]}>
         <meshStandardMaterial color="#2a1810" roughness={0.95} />
       </Cylinder>
-      {/* 中间青铜环 */}
       <Cylinder args={[0.18, 0.2, 0.04, 16]} position={[0, 0.08, 0]}>
-        <meshStandardMaterial
-          color="#8b5a28"
-          metalness={0.75}
-          roughness={0.4}
-        />
+        <meshStandardMaterial color="#8b5a28" metalness={0.75} roughness={0.4} />
       </Cylinder>
-      {/* 金属顶环 */}
       <Cylinder args={[0.14, 0.16, 0.025, 16]} position={[0, 0.12, 0]}>
-        <meshStandardMaterial
-          color={m.trim}
-          metalness={0.9}
-          roughness={0.2}
-        />
+        <meshStandardMaterial color={m.trim} metalness={0.9} roughness={0.2} />
       </Cylinder>
-      {/* 底座上的 4 个小铆钉 */}
       {[0, 1, 2, 3].map((i) => {
         const a = (i / 4) * Math.PI * 2;
         return (
@@ -153,39 +191,29 @@ function WarFlag({
             position={[Math.cos(a) * 0.2, 0.1, Math.sin(a) * 0.2]}
           >
             <sphereGeometry args={[0.02, 6, 6]} />
-            <meshStandardMaterial
-              color={m.trim}
-              metalness={1}
-              roughness={0.15}
-            />
+            <meshStandardMaterial color={m.trim} metalness={1} roughness={0.15} />
           </mesh>
         );
       })}
 
-      {/* === 旗杆（三节结构） === */}
-      {/* 杆下段（粗） */}
+      {/* === 旗杆三节 === */}
       <Cylinder args={[0.032, 0.035, 0.6, 10]} position={[0, 0.45, 0]}>
         <meshStandardMaterial color={m.pole} metalness={0.35} roughness={0.55} />
       </Cylinder>
-      {/* 中节铜箍 */}
       <Cylinder args={[0.04, 0.04, 0.05, 10]} position={[0, 0.78, 0]}>
         <meshStandardMaterial color={m.trim} metalness={0.9} roughness={0.25} />
       </Cylinder>
-      {/* 杆中段 */}
       <Cylinder args={[0.028, 0.032, 0.8, 10]} position={[0, 1.2, 0]}>
         <meshStandardMaterial color={m.pole} metalness={0.35} roughness={0.55} />
       </Cylinder>
-      {/* 上节铜箍 */}
       <Cylinder args={[0.036, 0.036, 0.05, 10]} position={[0, 1.65, 0]}>
         <meshStandardMaterial color={m.trim} metalness={0.9} roughness={0.25} />
       </Cylinder>
-      {/* 杆上段（细） */}
       <Cylinder args={[0.022, 0.028, 0.4, 10]} position={[0, 1.9, 0]}>
         <meshStandardMaterial color={m.pole} metalness={0.35} roughness={0.55} />
       </Cylinder>
 
-      {/* === 旗杆顶：三层枪尖 === */}
-      {/* 下方金球 */}
+      {/* === 旗杆顶三层 === */}
       <mesh position={[0, poleH + 0.12, 0]}>
         <sphereGeometry args={[0.055, 12, 12]} />
         <meshStandardMaterial
@@ -196,11 +224,9 @@ function WarFlag({
           emissiveIntensity={highlight ? 0.5 : 0.2}
         />
       </mesh>
-      {/* 过渡环 */}
       <Cylinder args={[0.04, 0.04, 0.04, 10]} position={[0, poleH + 0.19, 0]}>
         <meshStandardMaterial color={m.trim} metalness={1} roughness={0.1} />
       </Cylinder>
-      {/* 主枪尖 */}
       <mesh position={[0, poleH + 0.3, 0]}>
         <coneGeometry args={[0.05, 0.22, 10]} />
         <meshStandardMaterial
@@ -211,7 +237,6 @@ function WarFlag({
           emissiveIntensity={highlight ? 0.6 : 0.25}
         />
       </mesh>
-      {/* 尖顶小珠 */}
       <mesh position={[0, poleH + 0.44, 0]}>
         <sphereGeometry args={[0.018, 8, 8]} />
         <meshStandardMaterial
@@ -223,58 +248,32 @@ function WarFlag({
         />
       </mesh>
 
-      {/* === 旗面上方绳结 & 飘带 === */}
-      {/* 旗面连接绳结 */}
+      {/* === 旗面与旗杆连接绳结 === */}
       <mesh position={[0.04, poleH - 0.08, 0]}>
         <sphereGeometry args={[0.03, 6, 6]} />
         <meshStandardMaterial color={m.flagDark} roughness={0.7} />
       </mesh>
-      {/* 旗面下缘流苏 */}
-      <mesh position={[0.5, poleH - flagH - 0.08, 0]}>
-        <planeGeometry args={[flagW * 0.9, 0.05]} />
-        <meshStandardMaterial
-          color={m.trim}
-          side={THREE.DoubleSide}
-          roughness={0.6}
-        />
-      </mesh>
 
-      {/* === 旗面 === */}
+      {/* === 旗面主体（顶点波浪动画） === */}
+      {/* 使用 group 包裹，position 偏移让旗面贴在旗杆右侧 */}
       <group position={[0.025, poleH - flagH / 2 - 0.1, 0]}>
         <mesh ref={flagRef} position={[flagW / 2, 0, 0]}>
-          <planeGeometry args={[flagW, flagH, 12, 6]} />
+          <planeGeometry args={[flagW, flagH, 24, 12]} />
           <meshStandardMaterial
             color={m.flag}
             side={THREE.DoubleSide}
-            roughness={0.55}
-            metalness={0.05}
+            roughness={0.6}
+            metalness={0.02}
             emissive={m.flagDark}
-            emissiveIntensity={highlight ? 0.35 : 0.15}
+            emissiveIntensity={highlight ? 0.35 : 0.12}
+            flatShading={false}
           />
         </mesh>
-        {/* 旗面金边（上下两条） */}
-        <mesh position={[flagW / 2, flagH / 2 - 0.015, 0.002]}>
-          <planeGeometry args={[flagW * 0.95, 0.025]} />
-          <meshBasicMaterial
-            color={m.trim}
-            transparent
-            opacity={0.7}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
-        <mesh position={[flagW / 2, -flagH / 2 + 0.015, 0.002]}>
-          <planeGeometry args={[flagW * 0.95, 0.025]} />
-          <meshBasicMaterial
-            color={m.trim}
-            transparent
-            opacity={0.7}
-            side={THREE.DoubleSide}
-          />
-        </mesh>
-        {/* 阵营字 */}
-        <group ref={glyphRef} position={[flagW / 2, 0, 0.01]}>
+
+        {/* 阵营字 —— 跟随旗面中心点浮动 */}
+        <group ref={glyphRef} position={[flagW / 2, 0, 0.002]}>
           <Text
-            fontSize={0.38}
+            fontSize={0.36}
             color={m.trim}
             anchorX="center"
             anchorY="middle"
@@ -285,9 +284,9 @@ function WarFlag({
             {faction}
           </Text>
           <Text
-            position={[0, 0, -0.02]}
+            position={[0, 0, -0.004]}
             rotation={[0, Math.PI, 0]}
-            fontSize={0.38}
+            fontSize={0.36}
             color={m.trim}
             anchorX="center"
             anchorY="middle"
@@ -300,11 +299,8 @@ function WarFlag({
         </group>
       </group>
 
-      {/* === 中部飘带（动态飘扬） === */}
-      <mesh
-        ref={ribbonRef}
-        position={[0, poleH * 0.45, 0]}
-      >
+      {/* === 中部飘带 === */}
+      <mesh ref={ribbonRef} position={[0, poleH * 0.45, 0]}>
         <planeGeometry args={[0.14, 0.42]} />
         <meshStandardMaterial
           color={m.flagLight}
