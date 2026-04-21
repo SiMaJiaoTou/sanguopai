@@ -57,14 +57,14 @@ export function TopBar({
           transition={{ type: 'spring', stiffness: 180, delay: 0.2 }}
           className="seal-red w-11 h-11 text-base hidden sm:flex flex-shrink-0"
         >
-          將
+          将
         </motion.div>
         <div>
           <h1 className="text-xl sm:text-2xl font-black text-gold-grad tracking-[0.3em] leading-none font-kai">
-            三 國 將 星
+            三 国 将 星
           </h1>
           <div className="text-[10px] text-amber-200/60 tracking-[0.4em] mt-1 hidden sm:block">
-            · 牌 局 演 義 ·
+            · 牌 局 演 义 ·
           </div>
         </div>
         <div className="hidden md:flex items-center gap-2 ml-4 text-xs text-amber-100/70 italic">
@@ -86,7 +86,7 @@ export function TopBar({
 
         <Divider />
 
-        <StatCell label="金 幣">
+        <StatCell label="金 币">
           <motion.div
             key={gold}
             initial={{ scale: 1.3 }}
@@ -100,7 +100,7 @@ export function TopBar({
 
         <Divider />
 
-        <StatCell label={`主公府 Lv.${recruitLevel}${isMax ? '·滿' : ''}`}>
+        <StatCell label={`主公府 Lv.${recruitLevel}${isMax ? '·满' : ''}`}>
           <div className="w-[110px] sm:w-[130px]">
             <div
               className="h-2 w-full rounded-full overflow-hidden border border-amber-900"
@@ -142,7 +142,7 @@ export function TopBar({
 
         <Divider />
 
-        <StatCell label="全軍戰力" emphasis>
+        <StatCell label="全军军势" emphasis>
           <motion.div
             key={totalPower}
             initial={{ y: -8, opacity: 0, scale: 1.2 }}

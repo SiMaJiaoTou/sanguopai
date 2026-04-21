@@ -34,6 +34,7 @@ import { Toast } from './components/Toast';
 import { HandEffect, buildEffect, type EffectTrigger } from './components/HandEffect';
 import { GMTool } from './components/GMTool';
 import { TeamTabs } from './components/TeamTabs';
+import { FormationBroadcast } from './components/FormationBroadcast';
 
 function findCardById(
   hand: Card[],
@@ -64,7 +65,7 @@ export default function App() {
   const cfg = ROUND_CONFIGS[state.round];
   const teamsRequired = cfg.teamsRequired;
 
-  // 每队评估
+  // 每队评估（仅满 5 员才成阵；否则按"武勇和 × 1 倍率"累计）
   const team0Eval = useMemo(() => {
     const cards = state.teams[0].filter((c): c is Card => !!c);
     return cards.length === 5 ? evaluateHand(cards) : null;
@@ -74,8 +75,22 @@ export default function App() {
     return cards.length === 5 ? evaluateHand(cards) : null;
   }, [state.teams]);
 
+  // 未成阵时的部分军势：武勇和 × 1（默认倍率）
+  const team0PartialPower = useMemo(() => {
+    if (team0Eval) return team0Eval.power;
+    return state.teams[0]
+      .filter((c): c is Card => !!c)
+      .reduce((s, c) => s + c.pointValue, 0);
+  }, [state.teams, team0Eval]);
+  const team1PartialPower = useMemo(() => {
+    if (team1Eval) return team1Eval.power;
+    return state.teams[1]
+      .filter((c): c is Card => !!c)
+      .reduce((s, c) => s + c.pointValue, 0);
+  }, [state.teams, team1Eval]);
+
   const totalPower =
-    (team0Eval?.power ?? 0) + (teamsRequired >= 2 ? team1Eval?.power ?? 0 : 0);
+    team0PartialPower + (teamsRequired >= 2 ? team1PartialPower : 0);
 
   const activeRankKeys = useMemo(() => {
     const keys: RankTypeKey[] = [];
@@ -121,13 +136,6 @@ export default function App() {
     setEffect(buildEffect(top.key, top.name, top.flush));
   }, [team0Eval, team1Eval, teamsRequired]);
 
-  const requiredTeamsFull = useMemo(() => {
-    for (let ti = 0; ti < teamsRequired; ti++) {
-      if (!state.teams[ti].every((c) => c !== null)) return false;
-    }
-    return true;
-  }, [state.teams, teamsRequired]);
-
   // 拖拽感应器
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
@@ -172,15 +180,15 @@ export default function App() {
 
   const buildSnapshot = (): PowerSnapshot => ({
     round: state.round,
-    team0Power: team0Eval?.power ?? 0,
-    team1Power: teamsRequired >= 2 ? team1Eval?.power ?? 0 : 0,
+    team0Power: team0PartialPower,
+    team1Power: teamsRequired >= 2 ? team1PartialPower : 0,
     totalPower,
     gold: state.gold,
     recruitLevel: state.recruitLevel,
   });
 
   const handleNext = () => {
-    if (!requiredTeamsFull) return;
+    // 放宽规则：未上满 5 员不再阻塞下一年；空位默认 0 武勇、倍率默认 1
     const snapshot = buildSnapshot();
     if (state.round >= FINAL_ROUND) {
       state.settleFinal(snapshot);
@@ -224,6 +232,12 @@ export default function App() {
 
       <HandEffect trigger={effect} onDone={() => setEffect(null)} />
 
+      {/* 阵法播报横幅：显示当前激活军团的阵法 */}
+      <FormationBroadcast
+        evalResult={activeTeamIndex === 0 ? team0Eval : team1Eval}
+        teamIndex={activeTeamIndex}
+      />
+
       <DndContext
         sensors={sensors}
         onDragStart={onDragStart}
@@ -253,8 +267,8 @@ export default function App() {
               <TeamTabs
                 activeTeamIndex={activeTeamIndex}
                 onSwitch={setActiveTeamIndex}
-                team0Power={team0Eval?.power ?? 0}
-                team1Power={team1Eval?.power ?? 0}
+                team0Power={team0PartialPower}
+                team1Power={team1PartialPower}
                 team0Full={state.teams[0].every((c) => c !== null)}
                 team1Full={state.teams[1].every((c) => c !== null)}
               />
@@ -313,10 +327,10 @@ export default function App() {
 
                 <button
                   onClick={handleNext}
-                  disabled={!requiredTeamsFull || state.isFinished}
+                  disabled={state.isFinished}
                   className="btn-wood btn-gold text-sm px-4 sm:px-6 py-2.5 sm:py-3 tracking-[0.2em]"
                 >
-                  {state.round >= FINAL_ROUND ? '⚔ 終局結算' : '⚔ 下 一 年'}
+                  {state.round >= FINAL_ROUND ? '⚔ 终局结算' : '⚔ 下 一 年'}
                 </button>
               </div>
             </div>

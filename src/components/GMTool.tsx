@@ -81,7 +81,7 @@ export function GMTool({ onGrantGold, onMaxLevel, onFillHand }: Props) {
                 </div>
 
                 <div className="text-[10px] text-amber-100/50 italic mb-3 text-center">
-                  ◈ GM 調試工具 · 測試用 ◈
+                  ◈ GM 调试工具 · 测试用 ◈
                 </div>
 
                 {/* 金币档位 */}
@@ -121,8 +121,8 @@ export function GMTool({ onGrantGold, onMaxLevel, onFillHand }: Props) {
                         >
                           <span className="text-2xl leading-none">👑</span>
                           <div className="flex-1">
-                            <div className="text-sm font-black tracking-widest">主公晉升</div>
-                            <div className="text-[10px] text-amber-200/70">直升 Lv.6 · 滿級</div>
+                            <div className="text-sm font-black tracking-widest">主公晋升</div>
+                            <div className="text-[10px] text-amber-200/70">直升 Lv.6 · 满级</div>
                           </div>
                         </button>
                       )}
@@ -134,7 +134,7 @@ export function GMTool({ onGrantGold, onMaxLevel, onFillHand }: Props) {
                           <span className="text-2xl leading-none">🎲</span>
                           <div className="flex-1">
                             <div className="text-sm font-black tracking-widest">天降奇兵</div>
-                            <div className="text-[10px] text-amber-200/70">免費招募 5 員武將</div>
+                            <div className="text-[10px] text-amber-200/70">免费招募 5 员武将</div>
                           </div>
                         </button>
                       )}
@@ -143,7 +143,7 @@ export function GMTool({ onGrantGold, onMaxLevel, onFillHand }: Props) {
                 )}
 
                 <div className="mt-3 pt-2 border-t border-amber-900 text-[10px] text-amber-100/40 italic text-center">
-                  · 此乃測試之令 · 正式對弈請關之 ·
+                  · 此乃测试之令 · 正式对弈请关之 ·
                 </div>
               </motion.div>
             </motion.div>

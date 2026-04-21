@@ -86,7 +86,7 @@ export function PowerChart({ history, currentRound, currentTotalPower, isFinishe
       <div className="flex items-center justify-between mb-2 ink-underline relative">
         <div className="flex items-center gap-2">
           <span className="text-red-500 text-base">㊉</span>
-          <div className="text-gold-grad font-black tracking-[0.25em] font-kai">戰 · 錄</div>
+          <div className="text-gold-grad font-black tracking-[0.25em] font-kai">战 · 录</div>
         </div>
         <div className="text-[10px] text-amber-100/60 italic">
           峰值 <span className="text-gold-grad tabular-nums font-black">{fmt(niceMax)}</span>
@@ -297,7 +297,7 @@ export function PowerChart({ history, currentRound, currentTotalPower, isFinishe
         </span>
         <span className="flex items-center gap-1">
           <span className="inline-block w-3 h-0 border-t-2 border-dashed border-amber-400" />
-          當期預覽
+          当期预览
         </span>
         <span className="ml-auto">凡 {history.length} 卷</span>
       </div>

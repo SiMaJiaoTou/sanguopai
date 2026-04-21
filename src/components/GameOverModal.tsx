@@ -10,13 +10,13 @@ interface Props {
 export function GameOverModal({ totalPower, gold, recruitLevel, onRestart }: Props) {
   const rank =
     totalPower >= 1500
-      ? '一 統 天 下'
+      ? '一 统 天 下'
       : totalPower >= 1100
-        ? '問 鼎 中 原'
+        ? '问 鼎 中 原'
         : totalPower >= 700
-          ? '割 據 一 方'
+          ? '割 据 一 方'
           : totalPower >= 400
-            ? '小 有 聲 望'
+            ? '小 有 声 望'
             : '草 莽 英 雄';
 
   const epitaph =
@@ -83,7 +83,7 @@ export function GameOverModal({ totalPower, gold, recruitLevel, onRestart }: Pro
           —— {epitaph} ——
         </motion.div>
 
-        <div className="text-amber-200/60 text-xs mb-2 tracking-widest">六 載 征 戰 · 最 終 戰 力</div>
+        <div className="text-amber-200/60 text-xs mb-2 tracking-widest">六 载 征 战 · 最 终 军 势</div>
         <motion.div
           initial={{ scale: 0.5, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -95,7 +95,7 @@ export function GameOverModal({ totalPower, gold, recruitLevel, onRestart }: Pro
 
         <div className="grid grid-cols-2 gap-3 mb-8 text-sm">
           <div className="rounded-lg wood-light p-3 border-2 border-amber-900">
-            <div className="text-[10px] text-amber-100/70 tracking-widest font-kai">餘 財</div>
+            <div className="text-[10px] text-amber-100/70 tracking-widest font-kai">余 财</div>
             <div className="text-xl font-black text-amber-200 tabular-nums mt-1 font-kai">🪙 {gold}</div>
           </div>
           <div className="rounded-lg wood-light p-3 border-2 border-amber-900">
@@ -112,7 +112,7 @@ export function GameOverModal({ totalPower, gold, recruitLevel, onRestart }: Pro
           onClick={onRestart}
           className="btn-wood btn-gold px-10 py-4 tracking-[0.3em] text-base"
         >
-          再 開 新 局
+          再 开 新 局
         </motion.button>
       </motion.div>
     </motion.div>

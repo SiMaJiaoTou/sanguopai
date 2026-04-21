@@ -27,8 +27,8 @@ export function TeamTabs({
     power: number;
     full: boolean;
   }[] = [
-    { index: 0, label: '前 軍', power: team0Power, full: team0Full },
-    { index: 1, label: '後 軍', power: team1Power, full: team1Full },
+    { index: 0, label: '前 军', power: team0Power, full: team0Full },
+    { index: 1, label: '后 军', power: team1Power, full: team1Full },
   ];
 
   return (
@@ -61,7 +61,7 @@ export function TeamTabs({
                   className="seal-red w-7 h-7 text-[10px] flex-shrink-0"
                   style={{ transform: 'rotate(-6deg) scale(0.95)' }}
                 >
-                  {t.index === 0 ? '前' : '後'}
+                  {t.index === 0 ? '前' : '后'}
                 </div>
                 <div className="flex flex-col items-start leading-tight">
                   <span className="text-sm sm:text-base font-black">
@@ -73,7 +73,7 @@ export function TeamTabs({
                       active ? 'text-red-900' : t.full ? 'text-emerald-300' : 'text-amber-200/60',
                     ].join(' ')}
                   >
-                    {t.full ? '已成陣' : '配陣中'}
+                    {t.full ? '已成阵' : '配阵中'}
                   </span>
                 </div>
               </div>

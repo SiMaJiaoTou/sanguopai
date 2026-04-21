@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import * as THREE from 'three';
 import type { Card, EvaluateResult, Faction } from '../types';
 import { POWER_CAP } from '../evaluate';
+import { FORMATIONS } from '../formations';
 
 interface Props {
   teamIndex: number;
@@ -68,17 +69,21 @@ const FACTION_MAT: Record<
 
 // 5 槽位布局：参考图的 2×3 形式（后排 2 + 前排 3）
 // 世界坐标：Z 向屏幕里 = 负，越大越远
+// 注意：间距需 > TILE_W 以避免重叠
 const SLOT_LAYOUT: { x: number; z: number }[] = [
-  { x: -1.4, z: -0.9 }, // 0 后排左
-  { x: 1.4, z: -0.9 },  // 1 后排右
-  { x: -2.2, z: 0.9 },  // 2 前排左
-  { x: 0, z: 0.9 },     // 3 前排中
-  { x: 2.2, z: 0.9 },   // 4 前排右
+  { x: -1.1, z: -0.75 }, // 0 后排左
+  { x: 1.1, z: -0.75 },  // 1 后排右
+  { x: -2.2, z: 0.75 },  // 2 前排左
+  { x: 0, z: 0.75 },     // 3 前排中
+  { x: 2.2, z: 0.75 },   // 4 前排右
 ];
 
-// 牌位尺寸
-const TILE_W = 1.8;
-const TILE_H = 1.3;
+// 牌位尺寸（缩小以适配阵法最紧凑间距 1.0，如一字阵）
+const TILE_W = 0.95;
+const TILE_H = 0.85;
+
+// 军团 3D 模型整体缩放（旗杆/徽章/战力牌匾等随之缩小）
+const MODEL_SCALE = 0.5;
 
 // ======================================================================
 // 单面大旗（= 一个武将）
@@ -428,8 +433,17 @@ function SlotTile({
   // 规则矩形牌位（透视变形由 3D 相机自然产生）
   const borderColor = isOver ? '#fef3c7' : highlight ? '#fbbf24' : '#8b6914';
 
+  // 外层 group 做 lerp 平滑跟随阵法变化
+  const outerRef = useRef<THREE.Group>(null);
+  useFrame(() => {
+    if (!outerRef.current) return;
+    outerRef.current.position.x += (position.x - outerRef.current.position.x) * 0.12;
+    outerRef.current.position.z += (position.z - outerRef.current.position.z) * 0.12;
+  });
+
   return (
-    <group position={[position.x, 0.002, position.z]} rotation={[-Math.PI / 2, 0, 0]}>
+    <group ref={outerRef} position={[position.x, 0.002, position.z]}>
+    <group rotation={[-Math.PI / 2, 0, 0]}>
       {/* 内部半透明底 */}
       <mesh>
         <planeGeometry args={[TILE_W, TILE_H]} />
@@ -481,6 +495,7 @@ function SlotTile({
           {isOver ? `降 · ${slotIndex + 1}` : `空位 · ${slotIndex + 1}`}
         </Text>
       )}
+    </group>
     </group>
   );
 }
@@ -598,12 +613,16 @@ function Scene({
   cards,
   hovered,
   highlight,
+  evalResult,
+  onProjected,
 }: {
   cards: (Card | null)[];
   hovered: number | null;
   highlight: boolean;
+  evalResult: EvaluateResult | null;
+  onProjected: (pts: { left: number; top: number; halfW: number; halfH: number }[]) => void;
 }) {
-  const { camera } = useThree();
+  const { camera, size } = useThree();
 
   useEffect(() => {
     // 透视相机 + 远距 + 小 FOV 模拟"正交感"：压缩近大远小畸变
@@ -612,6 +631,57 @@ function Scene({
     camera.position.set(0, 11, 11);
     camera.lookAt(0, 0, 0);
   }, [camera]);
+
+  // 满 5 员时用阵法坐标，否则用默认 SLOT_LAYOUT
+  const isFull = cards.every((c) => c !== null);
+  const formation = isFull && evalResult ? FORMATIONS[evalResult.rankType.key] : null;
+  const positions = useMemo(() => {
+    if (formation) return formation.formation.map(([x, _y, z]) => ({ x, z }));
+    return SLOT_LAYOUT;
+  }, [formation]);
+
+  // 动画插值的当前位置（用于投影到 DOM）
+  const animatedRef = useRef<{ x: number; z: number }[]>(
+    positions.map((p) => ({ ...p })),
+  );
+  const lastSig = useRef<string>('');
+
+  useFrame(() => {
+    const anim = animatedRef.current;
+    for (let i = 0; i < positions.length; i++) {
+      if (!anim[i]) anim[i] = { ...positions[i] };
+      anim[i].x += (positions[i].x - anim[i].x) * 0.12;
+      anim[i].z += (positions[i].z - anim[i].z) * 0.12;
+    }
+
+    const v = new THREE.Vector3();
+    const vR = new THREE.Vector3();
+    const vD = new THREE.Vector3();
+    const projected: { left: number; top: number; halfW: number; halfH: number }[] = [];
+    for (let i = 0; i < anim.length; i++) {
+      v.set(anim[i].x, 0, anim[i].z).project(camera);
+      vR.set(anim[i].x + TILE_W / 2, 0, anim[i].z).project(camera);
+      vD.set(anim[i].x, 0, anim[i].z + TILE_H / 2).project(camera);
+      const left = ((v.x + 1) / 2) * size.width;
+      const top = ((1 - v.y) / 2) * size.height;
+      const rightPx = ((vR.x + 1) / 2) * size.width;
+      const downPx = ((1 - vD.y) / 2) * size.height;
+      projected.push({
+        left,
+        top,
+        halfW: Math.abs(rightPx - left),
+        halfH: Math.abs(downPx - top),
+      });
+    }
+    // 用整数像素签名判等，避免每帧 setState 抖动
+    const sig = projected
+      .map((p) => `${p.left | 0},${p.top | 0},${p.halfW | 0},${p.halfH | 0}`)
+      .join('|');
+    if (sig !== lastSig.current) {
+      lastSig.current = sig;
+      onProjected(projected);
+    }
+  });
 
   return (
     <>
@@ -623,8 +693,8 @@ function Scene({
       {/* 水墨地图 */}
       <MapGround />
 
-      {/* 5 个梯形槽位 */}
-      {SLOT_LAYOUT.map((pos, i) => (
+      {/* 5 个梯形槽位（跟随阵法坐标） */}
+      {positions.map((pos, i) => (
         <SlotTile
           key={i}
           slotIndex={i}
@@ -635,39 +705,42 @@ function Scene({
         />
       ))}
 
-      {/* 旗子（武将）—— 立在格子中心 */}
+      {/* 旗子（武将）—— 立在格子中心（跟随阵法坐标 + lerp） */}
       {cards.map((c, i) =>
         c ? (
-          <group key={c.id} position={[SLOT_LAYOUT[i].x, 0, SLOT_LAYOUT[i].z - 0.1]}>
-            <WarFlag faction={c.faction} seed={i * 1.7} highlight={highlight} />
-          </group>
+          <AnimatedFlag
+            key={c.id}
+            targetX={positions[i].x}
+            targetZ={positions[i].z - 0.1}
+            faction={c.faction}
+            seed={i * 1.7}
+            highlight={highlight}
+          />
         ) : null,
       )}
 
-      {/* 武将徽章（左前角） */}
+      {/* 武将徽章（左前角，跟随） */}
       {cards.map((c, i) =>
         c ? (
-          <group
+          <AnimatedGroup
             key={`m-${c.id}`}
-            position={[SLOT_LAYOUT[i].x - TILE_W * 0.4, 0, SLOT_LAYOUT[i].z + TILE_H * 0.45]}
+            targetX={positions[i].x - TILE_W * 0.4}
+            targetZ={positions[i].z + TILE_H * 0.45}
           >
             <CommanderMark faction={c.faction} name={c.name} />
-          </group>
+          </AnimatedGroup>
         ) : null,
       )}
 
-      {/* 战力数字（大号立体牌匾，悬浮在格子上方前侧） */}
+      {/* 战力数字（大号立体牌匾，悬浮在格子上方前侧，跟随） */}
       {cards.map((c, i) =>
         c ? (
           <PowerBanner
             key={`p-${c.id}`}
             value={c.pointValue}
             faction={c.faction}
-            position={[
-              SLOT_LAYOUT[i].x,
-              0.9,
-              SLOT_LAYOUT[i].z + TILE_H * 0.55,
-            ]}
+            targetX={positions[i].x}
+            targetZ={positions[i].z + TILE_H * 0.55}
           />
         ) : null,
       )}
@@ -675,29 +748,83 @@ function Scene({
   );
 }
 
-/** 大号战力牌匾（billboard 式始终面向相机） */
+/** 平滑追随目标坐标的武将旗子 */
+function AnimatedFlag({
+  targetX,
+  targetZ,
+  faction,
+  seed,
+  highlight,
+}: {
+  targetX: number;
+  targetZ: number;
+  faction: Faction;
+  seed: number;
+  highlight: boolean;
+}) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame(() => {
+    if (!ref.current) return;
+    ref.current.position.x += (targetX - ref.current.position.x) * 0.12;
+    ref.current.position.z += (targetZ - ref.current.position.z) * 0.12;
+  });
+  return (
+    <group ref={ref} position={[targetX, 0, targetZ]} scale={MODEL_SCALE}>
+      <WarFlag faction={faction} seed={seed} highlight={highlight} />
+    </group>
+  );
+}
+
+/** 平滑追随目标坐标的普通 group 容器 */
+function AnimatedGroup({
+  targetX,
+  targetZ,
+  children,
+}: {
+  targetX: number;
+  targetZ: number;
+  children: React.ReactNode;
+}) {
+  const ref = useRef<THREE.Group>(null);
+  useFrame(() => {
+    if (!ref.current) return;
+    ref.current.position.x += (targetX - ref.current.position.x) * 0.12;
+    ref.current.position.z += (targetZ - ref.current.position.z) * 0.12;
+  });
+  return (
+    <group ref={ref} position={[targetX, 0, targetZ]} scale={MODEL_SCALE}>
+      {children}
+    </group>
+  );
+}
+
+/** 大号战力牌匾（跟随目标坐标平滑移动 + 轻微浮动） */
 function PowerBanner({
   value,
   faction,
-  position,
+  targetX,
+  targetZ,
 }: {
   value: number;
   faction: Faction;
-  position: [number, number, number];
+  targetX: number;
+  targetZ: number;
 }) {
   const m = FACTION_MAT[faction];
   const ref = useRef<THREE.Group>(null);
+  const baseY = 0.9 * MODEL_SCALE;
 
   useFrame((state) => {
     if (ref.current) {
       const t = state.clock.getElapsedTime();
-      // 轻微上下浮动
-      ref.current.position.y = position[1] + Math.sin(t * 1.5) * 0.025;
+      ref.current.position.x += (targetX - ref.current.position.x) * 0.12;
+      ref.current.position.z += (targetZ - ref.current.position.z) * 0.12;
+      ref.current.position.y = baseY + Math.sin(t * 1.5) * 0.025 * MODEL_SCALE;
     }
   });
 
   return (
-    <group ref={ref} position={position} rotation={[-Math.PI / 7, 0, 0]}>
+    <group ref={ref} position={[targetX, baseY, targetZ]} rotation={[-Math.PI / 7, 0, 0]} scale={MODEL_SCALE}>
       {/* 背板阴影（后方深板） */}
       <mesh position={[0, 0, -0.02]}>
         <planeGeometry args={[0.82, 0.48]} />
@@ -774,7 +901,7 @@ function PowerBanner({
         outlineColor="#000"
         outlineWidth={0.005}
       >
-        戰
+        战
       </Text>
     </group>
   );
@@ -794,6 +921,14 @@ export function BattleField3D({
   const full = cards.every((c) => c !== null);
   const highlight = !!evalResult && (evalResult.rankType.score >= 6 || evalResult.isFlush);
   const [hovered, setHovered] = useState<number | null>(null);
+  const [projected, setProjected] = useState<
+    { left: number; top: number; halfW: number; halfH: number }[]
+  >([]);
+
+  // 军势显示：成阵时取 evalResult.power；未成阵时为已上阵武将的武勇之和（倍率默认 1）
+  const displayedPower = full && evalResult
+    ? evalResult.power
+    : cards.reduce((s, c) => s + (c?.pointValue ?? 0), 0);
 
   return (
     <motion.div
@@ -818,7 +953,7 @@ export function BattleField3D({
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-red-500 text-base">㊉</span>
           <div className="text-gold-grad font-black text-base sm:text-lg tracking-[0.25em] font-kai">
-            {teamIndex === 0 ? '前軍' : '後軍'}
+            {teamIndex === 0 ? '前军' : '后军'}
           </div>
           {full && evalResult ? (
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -852,20 +987,20 @@ export function BattleField3D({
                     boxShadow: 'inset 0 1px 0 rgba(255,180,160,0.5), 0 2px 4px rgba(0,0,0,0.7)',
                   }}
                 >
-                  ◆ 同花
+                  ◆ 阵营同心
                 </motion.span>
               )}
             </div>
           ) : (
-            <span className="text-xs text-amber-100/50 italic">· 配陣中 ·</span>
+            <span className="text-xs text-amber-100/50 italic">· 配阵中 ·</span>
           )}
         </div>
 
         <div className="text-right">
-          <div className="text-[10px] text-amber-200/60 tracking-widest font-kai">軍團戰力</div>
+          <div className="text-[10px] text-amber-200/60 tracking-widest font-kai">军团军势</div>
           <AnimatePresence mode="wait">
             <motion.div
-              key={evalResult?.power ?? 0}
+              key={displayedPower}
               initial={{ y: -6, opacity: 0, scale: 1.4 }}
               animate={{ y: 0, opacity: 1, scale: 1 }}
               exit={{ y: 6, opacity: 0 }}
@@ -874,7 +1009,7 @@ export function BattleField3D({
                 highlight ? 'text-gold-grad animate-shine' : 'text-amber-100',
               ].join(' ')}
             >
-              {full && evalResult ? evalResult.power : 0}
+              {displayedPower}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -912,7 +1047,7 @@ export function BattleField3D({
                 <span className="text-amber-200/50 text-base">→</span>
                 <span className="text-red-400 tabular-nums">{POWER_CAP}</span>
                 <span className="text-[10px] text-red-300 px-1.5 py-0.5 rounded bg-red-500/20 border border-red-400/60 font-bold tracking-widest">
-                  封頂
+                  封顶
                 </span>
               </>
             )}
@@ -939,15 +1074,22 @@ export function BattleField3D({
               near={0.1}
               far={100}
             />
-            <Scene cards={cards} hovered={hovered} highlight={highlight} />
+            <Scene
+              cards={cards}
+              hovered={hovered}
+              highlight={highlight}
+              evalResult={evalResult}
+              onProjected={setProjected}
+            />
           </Canvas>
         </div>
 
-        {/* 2×3 交互层：按参考图网格布局 */}
+        {/* 交互层：跟随 3D 投影坐标动态定位 */}
         <SlotOverlayGrid
           teamIndex={teamIndex}
           cards={cards}
           onHoverChange={setHovered}
+          projected={projected}
         />
       </div>
     </motion.div>
@@ -962,10 +1104,12 @@ function SlotOverlayGrid({
   teamIndex,
   cards,
   onHoverChange,
+  projected,
 }: {
   teamIndex: number;
   cards: (Card | null)[];
   onHoverChange: (idx: number | null) => void;
+  projected: { left: number; top: number; halfW: number; halfH: number }[];
 }) {
   // 管理 hover 状态：记录哪些格子被悬停，取最新一个
   const handleHover = (hover: boolean, idx: number) => {
@@ -974,18 +1118,33 @@ function SlotOverlayGrid({
   };
 
   return (
-    <div
-      className="absolute inset-0 grid gap-1 p-4 pointer-events-none"
-      style={{
-        gridTemplateColumns: 'repeat(4, 1fr)',
-        gridTemplateRows: '1fr 1fr',
-      }}
-    >
-      <SlotCell teamIndex={teamIndex} slotIndex={0} card={cards[0]} onHoverChange={handleHover} style={{ gridColumn: '1 / 3', gridRow: '1 / 2' }} />
-      <SlotCell teamIndex={teamIndex} slotIndex={1} card={cards[1]} onHoverChange={handleHover} style={{ gridColumn: '3 / 5', gridRow: '1 / 2' }} />
-      <SlotCell teamIndex={teamIndex} slotIndex={2} card={cards[2]} onHoverChange={handleHover} style={{ gridColumn: '1 / 2', gridRow: '2 / 3' }} />
-      <SlotCell teamIndex={teamIndex} slotIndex={3} card={cards[3]} onHoverChange={handleHover} style={{ gridColumn: '2 / 4', gridRow: '2 / 3' }} />
-      <SlotCell teamIndex={teamIndex} slotIndex={4} card={cards[4]} onHoverChange={handleHover} style={{ gridColumn: '4 / 5', gridRow: '2 / 3' }} />
+    <div className="absolute inset-0 pointer-events-none">
+      {cards.map((card, i) => {
+        const p = projected[i];
+        if (!p) return null;
+        const w = Math.max(40, p.halfW * 2);
+        const h = Math.max(40, p.halfH * 2);
+        return (
+          <div
+            key={i}
+            className="absolute pointer-events-auto"
+            style={{
+              left: p.left,
+              top: p.top,
+              width: w,
+              height: h,
+              transform: 'translate(-50%, -50%)',
+            }}
+          >
+            <SlotCell
+              teamIndex={teamIndex}
+              slotIndex={i}
+              card={card}
+              onHoverChange={handleHover}
+            />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -995,13 +1154,11 @@ function SlotCell({
   slotIndex,
   card,
   onHoverChange,
-  style,
 }: {
   teamIndex: number;
   slotIndex: number;
   card: Card | null;
   onHoverChange: (hover: boolean, idx: number) => void;
-  style?: React.CSSProperties;
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `team-${teamIndex}-${slotIndex}`,
@@ -1014,11 +1171,7 @@ function SlotCell({
   }, [isOver]);
 
   return (
-    <div
-      ref={setNodeRef}
-      className="relative pointer-events-auto"
-      style={style}
-    >
+    <div ref={setNodeRef} className="relative w-full h-full">
       {card && <DraggableOverlay card={card} />}
     </div>
   );

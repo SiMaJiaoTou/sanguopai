@@ -8,20 +8,20 @@ export const RANK_TYPES: Record<
   RankTypeKey,
   { key: RankTypeKey; name: string; score: number; priority: number }
 > = {
-  FIVE_OF_A_KIND:  { key: 'FIVE_OF_A_KIND',  name: '五条 (5)',       score: 10, priority: 1 },
-  FOUR_OF_A_KIND:  { key: 'FOUR_OF_A_KIND',  name: '四条 (4+1)',     score: 8,  priority: 2 },
-  FULL_HOUSE:      { key: 'FULL_HOUSE',      name: '葫芦 (3+2)',     score: 6,  priority: 3 },
-  STRAIGHT:        { key: 'STRAIGHT',        name: '顺子',           score: 5,  priority: 4 },
-  THREE_OF_A_KIND: { key: 'THREE_OF_A_KIND', name: '三条 (3+1+1)',   score: 4,  priority: 5 },
-  TWO_PAIR:        { key: 'TWO_PAIR',        name: '两对 (2+2+1)',   score: 3,  priority: 6 },
-  ONE_PAIR:        { key: 'ONE_PAIR',        name: '一对 (2+1+1+1)', score: 2,  priority: 7 },
-  HIGH_CARD:       { key: 'HIGH_CARD',       name: '散牌 (1+1+1+1+1)', score: 1, priority: 8 },
+  FIVE_OF_A_KIND:  { key: 'FIVE_OF_A_KIND',  name: '一字阵',   score: 10, priority: 1 },
+  FOUR_OF_A_KIND:  { key: 'FOUR_OF_A_KIND',  name: '雁行阵',   score: 8,  priority: 2 },
+  FULL_HOUSE:      { key: 'FULL_HOUSE',      name: '锥形阵',   score: 6,  priority: 3 },
+  STRAIGHT:        { key: 'STRAIGHT',        name: '长蛇阵',   score: 5,  priority: 4 },
+  THREE_OF_A_KIND: { key: 'THREE_OF_A_KIND', name: '鹤翼阵',   score: 4,  priority: 5 },
+  TWO_PAIR:        { key: 'TWO_PAIR',        name: '方圆阵',   score: 3,  priority: 6 },
+  ONE_PAIR:        { key: 'ONE_PAIR',        name: '锋矢阵',   score: 2,  priority: 7 },
+  HIGH_CARD:       { key: 'HIGH_CARD',       name: '散阵',     score: 1,  priority: 8 },
 };
 
-/** 花色附加值（叠加项） */
+/** 阵营同心附加值（叠加项） */
 export const SUIT_BONUS = {
-  FLUSH: { key: 'FLUSH' as const, name: '同花', bonus: 5 },
-  NONE: { key: 'NONE' as const, name: '非同花', bonus: 0 },
+  FLUSH: { key: 'FLUSH' as const, name: '阵营同心', bonus: 5 },
+  NONE: { key: 'NONE' as const, name: '未同心', bonus: 0 },
 };
 
 /** 战力硬性封顶 */

@@ -40,7 +40,7 @@ export function HandTypeTable({ activeRankKeys = [], anyFlush = false }: Props) 
       <div className="flex items-center justify-between mb-2 ink-underline">
         <div className="flex items-center gap-2">
           <span className="text-red-500 text-base">㊉</span>
-          <div className="text-gold-grad font-black tracking-[0.25em] font-kai">兵 法 譜</div>
+          <div className="text-gold-grad font-black tracking-[0.25em] font-kai">兵 法 谱</div>
         </div>
         <button
           onClick={() => setExpanded((v) => !v)}
@@ -50,12 +50,12 @@ export function HandTypeTable({ activeRankKeys = [], anyFlush = false }: Props) 
         </button>
       </div>
       <div className="text-[10px] text-amber-100/55 mb-3 italic text-center">
-        战力 ＝ 点数和 × (点数牌型 + 同花加成) · 上限 {POWER_CAP}
+        军势 ＝ 武勇和 × (阵法加成 + 同心加成) · 上限 {POWER_CAP}
       </div>
 
       {/* 乘区 1 */}
       <div className="text-[10px] text-amber-200/70 mb-1.5 pl-1 tracking-[0.25em] font-kai font-black">
-        ◈ 乘區一 · 點數牌型
+        ◈ 乘区一 · 阵 法 加 成
       </div>
       <div className="grid grid-cols-1 gap-1 mb-3">
         {ORDERED.map((k) => {
@@ -134,9 +134,9 @@ export function HandTypeTable({ activeRankKeys = [], anyFlush = false }: Props) 
         })}
       </div>
 
-      {/* 乘区 2：花色加成 */}
+      {/* 乘区 2：同心加成 */}
       <div className="text-[10px] text-amber-200/70 mb-1.5 pl-1 tracking-[0.25em] font-kai font-black">
-        ◈ 乘區二 · 花色加成
+        ◈ 乘区二 · 同 心 加 成
       </div>
       <motion.div
         layout
@@ -198,7 +198,7 @@ export function HandTypeTable({ activeRankKeys = [], anyFlush = false }: Props) 
       </motion.div>
 
       <div className="mt-3 text-[10px] text-amber-100/40 leading-relaxed border-t border-amber-900/40 pt-2 italic">
-        ◈ 范例：打出「同花3+2」→ 乘区 (6 + 5) = 11
+        ◈ 范例：蜀军同心 · 锥形阵 → 乘区 (6 + 5) = 11
       </div>
     </div>
   );
