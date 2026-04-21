@@ -48,19 +48,19 @@ export function TeamPanel({ teamIndex, cards, evalResult, canRedraw, onRedraw }:
     <motion.div
       layout
       className={[
-        'relative rounded-2xl p-4 min-w-0 scroll-paper',
-        'bg-gradient-to-b from-[#2a1810]/90 to-[#14100a]/95',
-        'border-2',
-        highlight
-          ? 'border-gold shadow-glow'
-          : 'border-amber-900/60 shadow-card-deep',
+        'relative rounded-lg wood-panel bronze-border rivets min-w-0',
+        highlight ? 'wood-dark' : 'wood-dark',
       ].join(' ')}
+      style={
+        highlight
+          ? {
+              boxShadow:
+                '0 0 24px rgba(212,175,55,0.5), 0 8px 20px rgba(0,0,0,0.8), inset 0 1px 2px rgba(255,200,120,0.35), inset 0 -2px 6px rgba(0,0,0,0.5)',
+            }
+          : undefined
+      }
     >
-      {/* 角落青铜装饰 */}
-      <div className="absolute top-0 left-0 w-3 h-3 border-l-2 border-t-2 border-gold/60 rounded-tl-xl" />
-      <div className="absolute top-0 right-0 w-3 h-3 border-r-2 border-t-2 border-gold/60 rounded-tr-xl" />
-      <div className="absolute bottom-0 left-0 w-3 h-3 border-l-2 border-b-2 border-gold/60 rounded-bl-xl" />
-      <div className="absolute bottom-0 right-0 w-3 h-3 border-r-2 border-b-2 border-gold/60 rounded-br-xl" />
+      <div className="rivet-b" />
 
       <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
         <div className="flex items-center gap-2 flex-wrap">

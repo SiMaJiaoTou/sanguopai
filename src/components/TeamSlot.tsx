@@ -37,12 +37,21 @@ export function TeamSlot({
       ref={setNodeRef}
       style={style}
       className={[
-        'shrink-0 rounded-xl flex items-center justify-center',
-        'border-2 border-dashed',
-        isOver ? 'border-gold bg-gold/10' : 'border-white/20 bg-white/5',
+        'shrink-0 rounded-lg flex items-center justify-center relative',
+        isOver ? 'border-2 border-amber-400' : 'border-2 border-amber-900',
         'transition-colors',
       ].join(' ')}
     >
+      {!card && (
+        <div
+          className="absolute inset-0 rounded-md"
+          style={{
+            background:
+              'linear-gradient(135deg, rgba(26,15,8,0.8) 0%, rgba(58,36,24,0.6) 50%, rgba(26,15,8,0.8) 100%)',
+            boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.7), inset 0 -1px 0 rgba(120,80,40,0.3)',
+          }}
+        />
+      )}
       {card ? (
         <CardView
           card={card}
@@ -53,10 +62,10 @@ export function TeamSlot({
         />
       ) : (
         <span
-          className="text-white/40"
+          className="text-amber-100/40 italic font-kai tracking-widest relative"
           style={{ fontSize: width && width < 80 ? 10 : 12 }}
         >
-          空位 {slotIndex + 1}
+          空 {slotIndex + 1}
         </span>
       )}
     </div>

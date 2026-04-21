@@ -80,18 +80,16 @@ export function PowerChart({ history, currentRound, currentTotalPower, isFinishe
     n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 1 : 2)}k`.replace('.00k', 'k') : `${n}`;
 
   return (
-    <div className="relative rounded-2xl bg-gradient-to-b from-[#3b2816] to-[#1a1109] border-2 border-amber-900/60 p-4 shadow-lg scroll-paper overflow-hidden">
-      {/* 左右竹节装饰 */}
-      <div className="absolute left-0 top-0 h-full w-2 bg-gradient-to-b from-amber-700 via-amber-900 to-amber-700 opacity-40" />
-      <div className="absolute right-0 top-0 h-full w-2 bg-gradient-to-b from-amber-700 via-amber-900 to-amber-700 opacity-40" />
+    <div className="relative rounded-lg wood-panel bronze-border rivets wood-dark">
+      <div className="rivet-b" />
 
-      <div className="flex items-center justify-between mb-2 relative">
+      <div className="flex items-center justify-between mb-2 ink-underline relative">
         <div className="flex items-center gap-2">
-          <span className="text-red-500 text-lg">㊉</span>
-          <div className="text-gold-grad font-bold tracking-widest">战 · 录</div>
+          <span className="text-red-500 text-base">㊉</span>
+          <div className="text-gold-grad font-black tracking-[0.25em] font-kai">戰 · 錄</div>
         </div>
-        <div className="text-[10px] text-amber-200/60">
-          峰值 <span className="text-gold tabular-nums">{fmt(niceMax)}</span>
+        <div className="text-[10px] text-amber-100/60 italic">
+          峰值 <span className="text-gold-grad tabular-nums font-black">{fmt(niceMax)}</span>
         </div>
       </div>
 
@@ -292,14 +290,14 @@ export function PowerChart({ history, currentRound, currentTotalPower, isFinishe
         )}
       </svg>
 
-      <div className="flex items-center gap-4 text-[11px] text-amber-100/60 mt-1 relative">
+      <div className="flex items-center gap-4 text-[11px] text-amber-100/70 mt-1 relative italic">
         <span className="flex items-center gap-1">
           <span className="inline-block w-3 h-[2px] bg-gradient-to-r from-amber-200 to-amber-600" />
-          已结算
+          已結算
         </span>
         <span className="flex items-center gap-1">
           <span className="inline-block w-3 h-0 border-t-2 border-dashed border-amber-400" />
-          当期预览
+          當期預覽
         </span>
         <span className="ml-auto">凡 {history.length} 卷</span>
       </div>

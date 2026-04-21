@@ -41,16 +41,15 @@ export function GameOverModal({ totalPower, gold, recruitLevel, onRestart }: Pro
         animate={{ scale: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 200 }}
         className={[
-          'relative w-full max-w-[520px] rounded-2xl',
-          'bg-gradient-to-b from-[#3b2816] via-[#1f1208] to-[#0b0807]',
-          'border-2 border-gold shadow-glow p-6 sm:p-10 text-center scroll-paper',
+          'relative w-full max-w-[520px] rounded-lg wood-panel bronze-border rivets wood-dark',
+          'p-6 sm:p-10 text-center',
         ].join(' ')}
+        style={{
+          boxShadow:
+            '0 0 40px rgba(212,175,55,0.5), 0 12px 40px rgba(0,0,0,0.9), inset 0 1px 2px rgba(255,200,120,0.35)',
+        }}
       >
-        {/* 四角装饰 */}
-        <div className="absolute top-2 left-2 w-6 h-6 border-l-2 border-t-2 border-gold rounded-tl-xl" />
-        <div className="absolute top-2 right-2 w-6 h-6 border-r-2 border-t-2 border-gold rounded-tr-xl" />
-        <div className="absolute bottom-2 left-2 w-6 h-6 border-l-2 border-b-2 border-gold rounded-bl-xl" />
-        <div className="absolute bottom-2 right-2 w-6 h-6 border-r-2 border-b-2 border-gold rounded-br-xl" />
+        <div className="rivet-b" />
 
         {/* 朱砂大印 */}
         <motion.div
@@ -95,13 +94,15 @@ export function GameOverModal({ totalPower, gold, recruitLevel, onRestart }: Pro
         </motion.div>
 
         <div className="grid grid-cols-2 gap-3 mb-8 text-sm">
-          <div className="rounded-lg bg-black/40 border border-amber-800/50 py-3 px-2">
-            <div className="text-[10px] text-amber-200/50 tracking-widest">余 财</div>
-            <div className="text-xl font-black text-amber-300 tabular-nums mt-1">🪙 {gold}</div>
+          <div className="rounded-lg wood-light p-3 border-2 border-amber-900">
+            <div className="text-[10px] text-amber-100/70 tracking-widest font-kai">餘 財</div>
+            <div className="text-xl font-black text-amber-200 tabular-nums mt-1 font-kai">🪙 {gold}</div>
           </div>
-          <div className="rounded-lg bg-black/40 border border-amber-800/50 py-3 px-2">
-            <div className="text-[10px] text-amber-200/50 tracking-widest">主 公 府</div>
-            <div className="text-xl font-black text-gold tabular-nums mt-1">Lv.{recruitLevel}</div>
+          <div className="rounded-lg wood-light p-3 border-2 border-amber-900">
+            <div className="text-[10px] text-amber-100/70 tracking-widest font-kai">主 公 府</div>
+            <div className="text-xl font-black text-gold-grad tabular-nums mt-1 font-kai">
+              Lv.{recruitLevel}
+            </div>
           </div>
         </div>
 
@@ -109,14 +110,9 @@ export function GameOverModal({ totalPower, gold, recruitLevel, onRestart }: Pro
           whileHover={{ scale: 1.03 }}
           whileTap={{ scale: 0.96 }}
           onClick={onRestart}
-          className={[
-            'px-10 py-3 rounded-xl font-bold touch-manipulation tracking-[0.3em] font-kai',
-            'bg-gradient-to-b from-amber-500 via-amber-600 to-amber-800',
-            'border-2 border-gold/70 text-ink shadow-glow',
-            'hover:brightness-110',
-          ].join(' ')}
+          className="btn-wood btn-gold px-10 py-4 tracking-[0.3em] text-base"
         >
-          再 开 新 局
+          再 開 新 局
         </motion.button>
       </motion.div>
     </motion.div>

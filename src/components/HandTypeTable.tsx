@@ -34,32 +34,28 @@ export function HandTypeTable({ activeRankKeys = [], anyFlush = false }: Props) 
   const [expanded, setExpanded] = useState(true);
 
   return (
-    <div
-      className={[
-        'relative rounded-2xl p-4 scroll-paper',
-        'bg-gradient-to-b from-[#2a1810] to-[#14100a]',
-        'border-2 border-amber-800/60 shadow-card-deep',
-      ].join(' ')}
-    >
-      <div className="flex items-center justify-between mb-2">
+    <div className="relative rounded-lg wood-panel bronze-border rivets wood-dark">
+      <div className="rivet-b" />
+
+      <div className="flex items-center justify-between mb-2 ink-underline">
         <div className="flex items-center gap-2">
-          <span className="text-red-400">㊉</span>
-          <div className="text-gold-grad font-bold tracking-[0.2em] font-kai">兵 法 谱</div>
+          <span className="text-red-500 text-base">㊉</span>
+          <div className="text-gold-grad font-black tracking-[0.25em] font-kai">兵 法 譜</div>
         </div>
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="text-[10px] px-2 py-0.5 rounded border border-amber-700/50 text-amber-200/60 hover:text-gold hover:border-gold/60 touch-manipulation"
+          className="btn-wood text-[10px] px-2 py-1"
         >
           {expanded ? '隐注 ▴' : '展注 ▾'}
         </button>
       </div>
-      <div className="text-[10px] text-amber-200/50 mb-3 italic">
-        战力 = 点数和 × (点数牌型 + 同花加成) · 上限 {POWER_CAP}
+      <div className="text-[10px] text-amber-100/55 mb-3 italic text-center">
+        战力 ＝ 点数和 × (点数牌型 + 同花加成) · 上限 {POWER_CAP}
       </div>
 
       {/* 乘区 1 */}
-      <div className="text-[10px] text-amber-200/60 mb-1.5 pl-1 tracking-[0.25em] font-kai">
-        ◈ 乘区一 · 点数牌型（互斥取最高）
+      <div className="text-[10px] text-amber-200/70 mb-1.5 pl-1 tracking-[0.25em] font-kai font-black">
+        ◈ 乘區一 · 點數牌型
       </div>
       <div className="grid grid-cols-1 gap-1 mb-3">
         {ORDERED.map((k) => {
@@ -139,8 +135,8 @@ export function HandTypeTable({ activeRankKeys = [], anyFlush = false }: Props) 
       </div>
 
       {/* 乘区 2：花色加成 */}
-      <div className="text-[10px] text-amber-200/60 mb-1.5 pl-1 tracking-[0.25em] font-kai">
-        ◈ 乘区二 · 花色加成（叠加项）
+      <div className="text-[10px] text-amber-200/70 mb-1.5 pl-1 tracking-[0.25em] font-kai font-black">
+        ◈ 乘區二 · 花色加成
       </div>
       <motion.div
         layout

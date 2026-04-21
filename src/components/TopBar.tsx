@@ -30,59 +30,68 @@ export function TopBar({
   return (
     <div
       className={[
-        'sticky top-0 z-40 px-3 sm:px-6 py-3',
-        'bg-gradient-to-b from-[#1a0f08] via-[#14100a] to-[#0b0807]',
-        'border-b-2 border-gold/40',
-        'shadow-[0_4px_20px_rgba(0,0,0,0.7)]',
+        'sticky top-0 z-40 px-3 sm:px-6 py-3 wood-dark',
+        'border-b-4 border-amber-900',
         'flex items-center justify-between gap-3 flex-wrap',
       ].join(' ')}
+      style={{
+        boxShadow:
+          '0 4px 12px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,200,120,0.25), inset 0 -4px 8px rgba(0,0,0,0.4)',
+      }}
     >
-      {/* 顶部金色细纹装饰 */}
-      <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-gold/70 to-transparent" />
+      {/* 顶部青铜金属条 */}
+      <div
+        className="absolute top-0 left-0 right-0 h-[3px]"
+        style={{
+          background:
+            'linear-gradient(90deg, #4a2e18 0%, #a8753a 20%, #d4af37 50%, #a8753a 80%, #4a2e18 100%)',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.5)',
+        }}
+      />
 
-      {/* 左侧：标题 + 朱砂印章 */}
-      <div className="flex items-center gap-3 flex-shrink-0">
+      {/* 左侧标题 */}
+      <div className="flex items-center gap-3 flex-shrink-0 relative">
         <motion.div
           initial={{ scale: 2, opacity: 0, rotate: -20 }}
           animate={{ scale: 1, opacity: 1, rotate: -3 }}
           transition={{ type: 'spring', stiffness: 180, delay: 0.2 }}
-          className="seal-red w-10 h-10 text-base hidden sm:flex"
+          className="seal-red w-11 h-11 text-base hidden sm:flex flex-shrink-0"
         >
-          将
+          將
         </motion.div>
         <div>
-          <h1 className="text-xl sm:text-2xl font-black text-gold-grad tracking-[0.3em] leading-none">
+          <h1 className="text-xl sm:text-2xl font-black text-gold-grad tracking-[0.3em] leading-none font-kai">
             三 國 將 星
           </h1>
-          <div className="text-[10px] text-amber-200/50 tracking-widest mt-0.5 hidden sm:block">
+          <div className="text-[10px] text-amber-200/60 tracking-[0.4em] mt-1 hidden sm:block">
             · 牌 局 演 義 ·
           </div>
         </div>
-        <div className="hidden md:flex items-center gap-2 ml-4 text-xs text-amber-100/50 italic">
-          <span className="text-red-400 text-lg">㊉</span>
+        <div className="hidden md:flex items-center gap-2 ml-4 text-xs text-amber-100/70 italic">
+          <span className="text-red-500 text-base">㊉</span>
           <span>{roundDesc}</span>
         </div>
       </div>
 
-      {/* 右侧：数据栏 */}
-      <div className="flex items-center gap-3 sm:gap-5 flex-wrap justify-end">
-        {/* 年份（书法） */}
+      {/* 右侧数据栏 */}
+      <div className="flex items-center gap-2 sm:gap-4 flex-wrap justify-end">
         <StatCell label="年份">
-          <div className="flex items-baseline gap-0.5 text-gold-grad">
-            <span className="text-lg sm:text-2xl font-black font-kai">{yearCn}</span>
+          <div className="flex items-baseline gap-0.5">
+            <span className="text-xl sm:text-2xl font-black font-kai text-gold-grad">
+              {yearCn}
+            </span>
             <span className="text-[10px] text-amber-200/60">/ 六</span>
           </div>
         </StatCell>
 
         <Divider />
 
-        {/* 金币 */}
-        <StatCell label="金 币">
+        <StatCell label="金 幣">
           <motion.div
             key={gold}
-            initial={{ scale: 1.3, color: '#fde047' }}
-            animate={{ scale: 1, color: '#fbbf24' }}
-            className="text-base sm:text-xl font-black flex items-center gap-1 justify-center"
+            initial={{ scale: 1.3 }}
+            animate={{ scale: 1 }}
+            className="text-base sm:text-xl font-black flex items-center gap-1 justify-center text-amber-200 font-kai"
           >
             <span className="text-yellow-300">🪙</span>
             <span className="tabular-nums">{gold}</span>
@@ -91,35 +100,40 @@ export function TopBar({
 
         <Divider />
 
-        {/* 主公府 + 经验条 */}
-        <StatCell label={`主公府 · Lv.${recruitLevel}${isMax ? ' (满)' : ''}`}>
-          <div className="w-[100px] sm:w-[120px]">
-            <div className="h-1.5 w-full rounded-full bg-black/70 overflow-hidden border border-amber-900/40">
+        <StatCell label={`主公府 Lv.${recruitLevel}${isMax ? '·滿' : ''}`}>
+          <div className="w-[110px] sm:w-[130px]">
+            <div
+              className="h-2 w-full rounded-full overflow-hidden border border-amber-900"
+              style={{
+                background: '#1a0f08',
+                boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.8)',
+              }}
+            >
               <motion.div
-                className="h-full bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-600"
+                className="h-full"
                 initial={{ width: 0 }}
                 animate={{ width: `${expPercent}%` }}
                 transition={{ duration: 0.4 }}
                 style={{
-                  boxShadow: '0 0 4px rgba(251,191,36,0.6)',
+                  background: 'linear-gradient(180deg, #fde68a 0%, #d4af37 40%, #8b6914 100%)',
+                  boxShadow: '0 0 6px rgba(251,191,36,0.7), inset 0 1px 0 rgba(255,245,200,0.5)',
                 }}
               />
             </div>
-            <div className="text-[9px] text-amber-200/50 mt-0.5 tabular-nums text-center">
-              {isMax ? '—— MAX ——' : `${recruitExp} / ${expNeed} exp`}
+            <div className="text-[9px] text-amber-200/60 mt-1 tabular-nums text-center">
+              {isMax ? '━━ MAX ━━' : `${recruitExp} / ${expNeed} 威望`}
             </div>
           </div>
         </StatCell>
 
         <Divider />
 
-        {/* 换将令 */}
         <StatCell label="免费换将">
           <motion.div
             key={freeRedrawsLeft}
-            initial={{ scale: 1.3, color: '#fde047' }}
-            animate={{ scale: 1, color: '#d4af37' }}
-            className="text-base sm:text-xl font-black flex items-center gap-1 justify-center"
+            initial={{ scale: 1.3 }}
+            animate={{ scale: 1 }}
+            className="text-base sm:text-xl font-black flex items-center gap-1 justify-center text-gold-grad font-kai"
           >
             <span>⟳</span>
             <span className="tabular-nums">{freeRedrawsLeft}</span>
@@ -128,13 +142,12 @@ export function TopBar({
 
         <Divider />
 
-        {/* 全军战力 */}
-        <StatCell label="全军战力" emphasis>
+        <StatCell label="全軍戰力" emphasis>
           <motion.div
             key={totalPower}
             initial={{ y: -8, opacity: 0, scale: 1.2 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
-            className="text-xl sm:text-2xl font-black text-gold-grad tabular-nums"
+            className="text-xl sm:text-2xl font-black text-gold-grad tabular-nums font-kai"
           >
             {totalPower}
           </motion.div>
@@ -157,8 +170,8 @@ function StatCell({
     <div className={`text-center ${emphasis ? 'min-w-[70px]' : ''}`}>
       <div
         className={[
-          'text-[9px] tracking-[0.2em]',
-          emphasis ? 'text-gold' : 'text-amber-200/55',
+          'text-[9px] tracking-[0.2em] font-kai',
+          emphasis ? 'text-gold-grad font-black' : 'text-amber-200/70',
         ].join(' ')}
       >
         {label}
@@ -170,6 +183,12 @@ function StatCell({
 
 function Divider() {
   return (
-    <div className="hidden sm:block h-8 w-px bg-gradient-to-b from-transparent via-amber-700/40 to-transparent" />
+    <div
+      className="hidden sm:block h-10 w-[2px]"
+      style={{
+        background:
+          'linear-gradient(180deg, transparent 0%, #8b5a28 20%, #d4af37 50%, #8b5a28 80%, transparent 100%)',
+      }}
+    />
   );
 }

@@ -32,6 +32,7 @@ import { PowerChart } from './components/PowerChart';
 import { RecruitPanel } from './components/RecruitPanel';
 import { Toast } from './components/Toast';
 import { HandEffect, buildEffect, type EffectTrigger } from './components/HandEffect';
+import { GMTool } from './components/GMTool';
 
 function findCardById(
   hand: Card[],
@@ -269,13 +270,14 @@ export default function App() {
             </div>
 
             {/* 操作区 */}
-            <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-2 text-xs text-white/50 flex-wrap">
-                <span>牌库 {state.deck.length}</span>
+            <div className="flex items-center justify-between gap-3 flex-wrap relative rounded-lg wood-light px-3 py-2.5 border-2 border-amber-900">
+              <div className="flex items-center gap-2 text-xs text-amber-100/80 flex-wrap font-kai">
+                <span>牌库 <span className="text-gold-grad font-black tabular-nums">{state.deck.length}</span></span>
                 {(['魏', '蜀', '吴', '群'] as const).map((f) => (
                   <span
                     key={f}
-                    className={`px-2 py-0.5 rounded-md ${FACTION_THEME[f].bg} ${FACTION_THEME[f].accent}`}
+                    className={`px-2 py-0.5 rounded ${FACTION_THEME[f].bg} ${FACTION_THEME[f].accent} border border-amber-900 text-[11px] font-black`}
+                    style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1)' }}
                   >
                     {f} {factionCount[f]}
                   </span>
@@ -285,7 +287,7 @@ export default function App() {
               <div className="flex items-center gap-2 flex-wrap ml-auto">
                 <button
                   onClick={state.autoPlace}
-                  className="px-3 py-2 rounded-lg bg-white/10 active:bg-white/25 hover:bg-white/20 text-white text-sm border border-white/15 touch-manipulation"
+                  className="btn-wood text-xs px-3 py-2"
                   title="将手牌自动填入空槽"
                 >
                   一键布阵
@@ -293,22 +295,17 @@ export default function App() {
 
                 <button
                   onClick={handleRestart}
-                  className="px-3 py-2 rounded-lg bg-white/5 active:bg-white/20 hover:bg-white/10 text-white text-sm border border-white/15 touch-manipulation"
+                  className="btn-wood text-xs px-3 py-2"
                 >
-                  重开
+                  重 开
                 </button>
 
                 <button
                   onClick={handleNext}
                   disabled={!requiredTeamsFull || state.isFinished}
-                  className={[
-                    'px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl font-bold text-sm sm:text-base shadow-md touch-manipulation',
-                    requiredTeamsFull && !state.isFinished
-                      ? 'bg-gold text-ink active:bg-gold-dark hover:bg-gold-light animate-shine'
-                      : 'bg-white/10 text-white/40 cursor-not-allowed',
-                  ].join(' ')}
+                  className="btn-wood btn-gold text-sm px-4 sm:px-6 py-2.5 sm:py-3 tracking-[0.2em]"
                 >
-                  {state.round >= FINAL_ROUND ? '⚔ 终局结算' : '⚔ 下一年'}
+                  {state.round >= FINAL_ROUND ? '⚔ 終局結算' : '⚔ 下 一 年'}
                 </button>
               </div>
             </div>
@@ -375,6 +372,13 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+
+      {/* GM 调试工具 */}
+      <GMTool
+        onGrantGold={state.gmGrantGold}
+        onMaxLevel={state.gmMaxLevel}
+        onFillHand={state.gmFillHand}
+      />
     </div>
   );
 }

@@ -51,6 +51,11 @@ export interface GameState {
   settleFinal: (snapshot: PowerSnapshot) => void;
   autoPlace: () => void;
   clearMessage: () => void;
+
+  // GM 调试接口
+  gmGrantGold: (amount: number) => void;
+  gmMaxLevel: () => void;
+  gmFillHand: () => void;
 }
 
 export type SlotTarget =
@@ -319,4 +324,38 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   clearMessage: () => set({ lastMessage: null }),
+
+  // ================= GM 调试 =================
+  gmGrantGold: (amount) => {
+    const s = get();
+    set({
+      gold: s.gold + amount,
+      lastMessage: `【天降令牌】金库 +${amount} 金币`,
+    });
+  },
+
+  gmMaxLevel: () => {
+    set({
+      recruitLevel: 6,
+      recruitExp: 0,
+      lastMessage: '【天降令牌】主公府直升 Lv.6',
+    });
+  },
+
+  gmFillHand: () => {
+    const s = get();
+    let working = s.deck;
+    const drawn: Card[] = [];
+    for (let i = 0; i < 5; i++) {
+      const r = drawOneUnlocked(working, s.recruitLevel);
+      if (!r.card) break;
+      drawn.push(r.card);
+      working = r.rest;
+    }
+    set({
+      deck: working,
+      hand: [...s.hand, ...drawn],
+      lastMessage: `【天降令牌】召唤 ${drawn.length} 员武将`,
+    });
+  },
 }));

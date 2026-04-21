@@ -20,7 +20,6 @@ export function RedrawZone({ freeRedrawsLeft, gold, paidCost, compact }: Props) 
 
   const modeLabel = useFree ? '免费换将令' : disabled ? '无力换将' : '付费换将';
   const priceLabel = useFree ? `剩余 ${freeRedrawsLeft}` : `需 🪙 ${paidCost}`;
-  const modeColor = useFree ? 'text-gold' : disabled ? 'text-red-300' : 'text-amber-300';
 
   if (compact) {
     return (
@@ -28,30 +27,32 @@ export function RedrawZone({ freeRedrawsLeft, gold, paidCost, compact }: Props) 
         ref={setNodeRef}
         layout
         className={[
-          'sticky top-[60px] z-30 w-full rounded-xl px-4 py-3 border-2 border-dashed transition-all',
-          'flex items-center gap-3 backdrop-blur-md',
+          'sticky top-[76px] z-30 w-full rounded-lg px-4 py-3 border-2 transition-all',
+          'wood-panel rivets',
+          'flex items-center gap-3',
           disabled
-            ? 'border-white/15 bg-black/50 opacity-70'
+            ? 'wood-light opacity-75 border-amber-900'
             : isOver
-              ? 'border-gold bg-gold/25 shadow-glow scale-[1.01]'
+              ? 'lacquer-red border-amber-500'
               : useFree
-                ? 'border-gold/40 bg-gradient-to-r from-amber-900/40 to-red-900/40'
-                : 'border-amber-500/40 bg-gradient-to-r from-amber-800/30 to-orange-900/30',
+                ? 'wood-dark border-amber-800'
+                : 'wood-light border-amber-700',
         ].join(' ')}
       >
+        <div className="rivet-b" />
         <motion.div
           animate={isOver ? { rotate: 360, scale: 1.15 } : { rotate: 0, scale: 1 }}
           transition={{ duration: 0.5 }}
-          className="text-2xl shrink-0"
+          className="text-3xl shrink-0 relative"
         >
           {disabled ? '🚫' : useFree ? '⟳' : '🪙'}
         </motion.div>
 
-        <div className="flex-1 min-w-0">
-          <div className={`text-xs font-bold tracking-widest leading-tight ${modeColor}`}>
+        <div className="flex-1 min-w-0 relative">
+          <div className={`text-xs font-black tracking-widest leading-tight font-kai ${disabled ? 'text-red-300' : useFree ? 'text-gold-grad' : 'text-amber-200'}`}>
             {modeLabel}
           </div>
-          <div className="text-[10px] text-white/50 leading-tight truncate">
+          <div className="text-[10px] text-amber-100/60 leading-tight truncate italic">
             {disabled
               ? '免费次数已尽且金币不足'
               : isOver
@@ -67,13 +68,16 @@ export function RedrawZone({ freeRedrawsLeft, gold, paidCost, compact }: Props) 
           initial={{ scale: 1.3 }}
           animate={{ scale: 1 }}
           className={[
-            'text-sm font-black tabular-nums shrink-0 px-2 py-1 rounded border',
+            'text-sm font-black tabular-nums shrink-0 px-3 py-1.5 rounded border-2 relative',
             useFree
-              ? 'text-gold border-gold/40 bg-gold/10'
+              ? 'bg-amber-900/80 text-gold-grad border-gold'
               : disabled
-                ? 'text-red-300 border-red-400/40 bg-red-500/10'
-                : 'text-amber-300 border-amber-400/40 bg-amber-500/10',
+                ? 'bg-red-950/80 text-red-300 border-red-700'
+                : 'bg-amber-800/80 text-amber-100 border-amber-500',
           ].join(' ')}
+          style={{
+            boxShadow: 'inset 0 1px 2px rgba(255,220,150,0.3), 0 1px 2px rgba(0,0,0,0.6)',
+          }}
         >
           {priceLabel}
         </motion.div>
@@ -86,47 +90,52 @@ export function RedrawZone({ freeRedrawsLeft, gold, paidCost, compact }: Props) 
       ref={setNodeRef}
       layout
       className={[
-        'relative w-full rounded-2xl p-5 border-2 border-dashed transition-all',
-        'flex flex-col items-center justify-center gap-2 min-h-[180px]',
+        'relative rounded-lg wood-panel bronze-border rivets transition-all',
         disabled
-          ? 'border-white/10 bg-black/20 opacity-60'
+          ? 'wood-light opacity-70'
           : isOver
-            ? 'border-gold bg-gold/15 shadow-glow scale-[1.02]'
+            ? 'lacquer-red scale-[1.02]'
             : useFree
-              ? 'border-gold/40 bg-gradient-to-br from-amber-900/20 to-red-900/20 hover:border-gold/70'
-              : 'border-amber-500/40 bg-gradient-to-br from-amber-800/20 to-orange-900/20 hover:border-amber-400/70',
+              ? 'wood-dark'
+              : 'wood-light',
+        'flex flex-col items-center justify-center gap-2 min-h-[180px]',
       ].join(' ')}
     >
+      <div className="rivet-b" />
+
       <motion.div
         animate={isOver ? { rotate: [0, 180, 360], scale: 1.15 } : { rotate: 0, scale: 1 }}
         transition={{ duration: 0.6 }}
-        className="text-4xl"
+        className="text-5xl relative"
+        style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.7))' }}
       >
         {disabled ? '🚫' : useFree ? '⟳' : '🪙'}
       </motion.div>
 
-      <div className={`font-bold tracking-widest text-sm ${modeColor}`}>{modeLabel}</div>
+      <div className={`font-black tracking-[0.3em] text-sm font-kai relative ${disabled ? 'text-red-300' : useFree ? 'text-gold-grad' : 'text-amber-200'}`}>
+        {modeLabel}
+      </div>
 
       <motion.div
         key={`${useFree}-${freeRedrawsLeft}-${gold}`}
         initial={{ scale: 1.4 }}
         animate={{ scale: 1 }}
-        className="text-3xl font-black tabular-nums"
+        className="text-3xl font-black tabular-nums relative font-kai"
       >
         {useFree ? (
-          <span className="text-gold">⟳ {freeRedrawsLeft}</span>
+          <span className="text-gold-grad">⟳ {freeRedrawsLeft}</span>
         ) : disabled ? (
           <span className="text-red-300">—</span>
         ) : (
-          <span className="text-amber-300">🪙 {paidCost}</span>
+          <span className="text-amber-200">🪙 {paidCost}</span>
         )}
       </motion.div>
 
-      <div className="text-[11px] text-white/50 text-center leading-relaxed px-2">
+      <div className="text-[11px] text-amber-100/60 text-center leading-relaxed px-2 italic relative">
         {disabled ? (
           <>免费次数已尽 · 金币不足</>
         ) : isOver ? (
-          <span className="text-gold">松开以{useFree ? '免费' : '付费'}替换</span>
+          <span className="text-gold-grad font-bold">松开以{useFree ? '免费' : '付费'}替换</span>
         ) : useFree ? (
           <>拖拽卡牌至此<br />消耗 1 次免费换将</>
         ) : (
@@ -134,7 +143,7 @@ export function RedrawZone({ freeRedrawsLeft, gold, paidCost, compact }: Props) 
         )}
       </div>
 
-      <div className="absolute top-2 right-2 text-[10px] text-red-400/80 border border-red-400/40 px-1.5 py-0.5 rounded-sm font-bold tracking-widest">
+      <div className="absolute top-3 right-3 seal-red w-7 h-7 text-[10px] z-10">
         令
       </div>
     </motion.div>
