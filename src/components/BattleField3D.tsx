@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
-import { PerspectiveCamera, Text, Cylinder, Plane, Html } from '@react-three/drei';
+import { PerspectiveCamera, Text, Cylinder, Plane, Html, Billboard } from '@react-three/drei';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { AnimatePresence, motion } from 'framer-motion';
 import * as THREE from 'three';
@@ -566,6 +566,14 @@ function Scene({
   // 满 5 员时用阵法坐标，否则用默认 SLOT_LAYOUT
   const isFull = cards.every((c) => c !== null);
   const formation = isFull && evalResult ? FORMATIONS[evalResult.rankType.key] : null;
+
+  // 阵法触发特效的签名与倍率
+  const burstKey = isFull && evalResult
+    ? `${evalResult.rankType.key}|${evalResult.isFlush}`
+    : null;
+  const burstMultiplier = evalResult
+    ? evalResult.rankType.score + (evalResult.isFlush ? 1 : 0)
+    : 0;
   const positions = useMemo(() => {
     if (formation) return formation.formation.map(([x, _y, z]) => ({ x, z }));
     return SLOT_LAYOUT;
@@ -674,6 +682,9 @@ function Scene({
           />
         ) : null,
       )}
+
+      {/* 阵法触发特效：金色粒子喷发 + 战力倍率文字升起 */}
+      <FormationBurst triggerKey={burstKey} multiplier={burstMultiplier} />
     </>
   );
 }
@@ -1221,5 +1232,155 @@ function StatBox({
         </div>
       )}
     </div>
+  );
+}
+
+// ======================================================================
+// 阵法触发特效：金色粒子喷发 + 战力倍率文字升起
+// 每当阵法签名（rankKey|isFlush）变化为非空时触发一次 burst
+// ======================================================================
+
+interface Particle {
+  id: number;
+  x: number;
+  y: number;
+  z: number;
+  vx: number;
+  vy: number;
+  vz: number;
+  life: number; // 剩余生命 0~1
+  size: number;
+  hue: number; // 色相偏移：0=金，1=红
+}
+
+function FormationBurst({
+  triggerKey,
+  multiplier,
+}: {
+  triggerKey: string | null;
+  multiplier: number;
+}) {
+  // 粒子数据放 ref（每帧直接改），仅用 tick 触发 re-render
+  const particlesRef = useRef<Particle[]>([]);
+  const textLifeRef = useRef<number>(0);
+  const activeRef = useRef<boolean>(false);
+  const [, setTick] = useState(0);
+  const lastKey = useRef<string | null>(null);
+
+  // 观察 triggerKey 变化 → 触发新 burst
+  useEffect(() => {
+    if (!triggerKey || triggerKey === lastKey.current) return;
+    lastKey.current = triggerKey;
+
+    const count = 40;
+    const particles: Particle[] = [];
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 1.4 + Math.random() * 2.2;
+      const upward = 1.8 + Math.random() * 2.2;
+      particles.push({
+        id: i,
+        x: (Math.random() - 0.5) * 1.5,
+        y: 0.4 + Math.random() * 0.3,
+        z: (Math.random() - 0.5) * 1.2,
+        vx: Math.cos(angle) * speed,
+        vy: upward,
+        vz: Math.sin(angle) * speed,
+        life: 1,
+        size: 0.05 + Math.random() * 0.08,
+        hue: Math.random() < 0.15 ? 1 : 0,
+      });
+    }
+    particlesRef.current = particles;
+    textLifeRef.current = 1;
+    activeRef.current = true;
+    setTick((t) => t + 1);
+  }, [triggerKey]);
+
+  // 每帧推进动画
+  useFrame((_, delta) => {
+    if (!activeRef.current) return;
+    const dt = Math.min(delta, 0.05);
+    let allDead = true;
+    for (const p of particlesRef.current) {
+      if (p.life <= 0) continue;
+      allDead = false;
+      p.vy -= 4.2 * dt; // 重力
+      p.vx *= 0.94;
+      p.vz *= 0.94;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.z += p.vz * dt;
+      p.life -= dt / 1.2; // ~1.2 秒生命
+      if (p.life < 0) p.life = 0;
+    }
+    // 文字生命 ~1.1 秒
+    textLifeRef.current = Math.max(0, textLifeRef.current - dt / 1.1);
+    if (allDead && textLifeRef.current <= 0) {
+      activeRef.current = false;
+    }
+    // 触发 re-render 以更新粒子视觉
+    setTick((t) => (t + 1) % 1000000);
+  });
+
+  if (!activeRef.current) return null;
+
+  const textLife = textLifeRef.current;
+  // 文字位置：从中心 y=0.6 上浮到 y=2.4
+  const textY = 0.6 + (1 - textLife) * 1.8;
+  const textOpacity = textLife;
+  const textScale = 0.8 + (1 - textLife) * 0.8;
+
+  return (
+    <>
+      {/* 金色粒子 */}
+      {particlesRef.current.map((p) =>
+        p.life > 0 ? (
+          <mesh key={p.id} position={[p.x, p.y, p.z]}>
+            <sphereGeometry args={[p.size * p.life, 6, 6]} />
+            <meshBasicMaterial
+              color={p.hue > 0.5 ? '#ff5555' : '#ffd850'}
+              transparent
+              opacity={p.life * 0.92}
+              toneMapped={false}
+            />
+          </mesh>
+        ) : null,
+      )}
+
+      {/* 倍率文字（HTML 层，支持中文） */}
+      {textOpacity > 0 && (
+        <Billboard position={[0, textY, 0]}>
+          <Html
+            center
+            distanceFactor={6}
+            wrapperClass="pointer-events-none"
+            style={{ pointerEvents: 'none', userSelect: 'none' }}
+          >
+            <div
+              className="font-kai font-black whitespace-nowrap"
+              style={{
+                fontSize: 32,
+                color: '#fff5cc',
+                opacity: textOpacity,
+                transform: `scale(${textScale})`,
+                textShadow:
+                  '0 0 12px rgba(255,220,100,0.95), 0 0 24px rgba(212,175,55,0.75), 0 2px 4px rgba(0,0,0,0.95)',
+                letterSpacing: '0.15em',
+                padding: '4px 16px',
+                background:
+                  'linear-gradient(180deg, rgba(80,40,8,0.55) 0%, rgba(30,15,4,0.8) 100%)',
+                border: '2px solid rgba(212,175,55,0.85)',
+                borderRadius: 6,
+                boxShadow:
+                  '0 0 20px rgba(212,175,55,0.6), inset 0 1px 0 rgba(255,220,160,0.4)',
+              }}
+            >
+              战 力 × {multiplier} 倍
+            </div>
+          </Html>
+        </Billboard>
+      )}
+    </>
   );
 }
