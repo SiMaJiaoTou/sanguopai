@@ -921,11 +921,6 @@ export function BattleField3D({
     { left: number; top: number; halfW: number; halfH: number }[]
   >([]);
 
-  // 军势显示：成阵时取 evalResult.power；未成阵时为已上阵武将的武勇之和（倍率默认 1）
-  const displayedPower = full && evalResult
-    ? evalResult.power
-    : cards.reduce((s, c) => s + (c?.pointValue ?? 0), 0);
-
   return (
     <motion.div
       layout
@@ -991,65 +986,135 @@ export function BattleField3D({
             <span className="text-xs text-amber-100/50 italic">· 配阵中 ·</span>
           )}
         </div>
-
-        <div className="text-right">
-          <div className="text-[10px] text-amber-200/60 tracking-widest font-kai">军团军势</div>
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={displayedPower}
-              initial={{ y: -6, opacity: 0, scale: 1.4 }}
-              animate={{ y: 0, opacity: 1, scale: 1 }}
-              exit={{ y: 6, opacity: 0 }}
-              className={[
-                'text-3xl sm:text-4xl font-black tabular-nums font-kai leading-none',
-                highlight ? 'text-gold-grad animate-shine' : 'text-amber-100',
-              ].join(' ')}
-            >
-              {displayedPower}
-            </motion.div>
-          </AnimatePresence>
-        </div>
       </div>
 
-      {/* 算法拆解 */}
-      {full && evalResult && (
-        <motion.div
-          layout
-          initial={{ opacity: 0, y: -4 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-3 px-3 py-2 rounded-lg text-sm leading-tight"
-          style={{
-            background: 'linear-gradient(90deg, #1a0f08 0%, #2a1810 50%, #1a0f08 100%)',
-            border: '2px solid #5a3a24',
-            boxShadow: 'inset 0 2px 3px rgba(0,0,0,0.6)',
-          }}
-        >
-          <div className="flex items-center justify-center gap-2 font-kai font-black flex-wrap text-lg sm:text-xl">
-            <span className="text-emerald-300 tabular-nums">{evalResult.pointSum}</span>
-            <span className="text-amber-200/50 text-base">×</span>
-            <span className="text-amber-200/50 text-base">(</span>
-            <span className="text-emerald-300 tabular-nums">{evalResult.rankType.score}</span>
-            <span className="text-amber-200/50 text-base">+</span>
-            <span className={['tabular-nums', evalResult.isFlush ? 'text-gold-grad' : 'text-amber-200/40'].join(' ')}>
-              {evalResult.suitBonus}
-            </span>
-            <span className="text-amber-200/50 text-base">)</span>
-            <span className="text-amber-200/50 text-base">=</span>
-            <span className={['tabular-nums', evalResult.capped ? 'text-red-400 line-through' : 'text-gold-grad'].join(' ')}>
-              {evalResult.rawPower}
-            </span>
-            {evalResult.capped && (
-              <>
-                <span className="text-amber-200/50 text-base">→</span>
-                <span className="text-red-400 tabular-nums">{POWER_CAP}</span>
-                <span className="text-[10px] text-red-300 px-1.5 py-0.5 rounded bg-red-500/20 border border-red-400/60 font-bold tracking-widest">
-                  封顶
+      {/* 四指标拆解 banner：始终显示。未成阵时阵法=1、阵营=0 */}
+      {(() => {
+        const placedCount = cards.filter((c) => !!c).length;
+        const basePower = cards.reduce((s, c) => s + (c?.pointValue ?? 0), 0);
+        const rankMult = full && evalResult ? evalResult.rankType.score : 1;
+        const flushBonus = full && evalResult ? evalResult.suitBonus : 0;
+        const rawPower = full && evalResult ? evalResult.rawPower : basePower * (rankMult + flushBonus);
+        const capped = full && evalResult ? evalResult.capped : false;
+        const finalPower = full && evalResult ? evalResult.power : basePower;
+        const flushLabel = full && evalResult && evalResult.isFlush ? '阵营同心' : '—';
+        const rankLabel = full && evalResult ? evalResult.rankType.name : `配阵中 · ${placedCount}/5`;
+
+        return (
+          <motion.div
+            layout
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-3 px-3 py-3 rounded-lg"
+            style={{
+              background: 'linear-gradient(90deg, #1a0f08 0%, #2a1810 50%, #1a0f08 100%)',
+              border: '2px solid #5a3a24',
+              boxShadow: 'inset 0 2px 3px rgba(0,0,0,0.6)',
+            }}
+          >
+            <div className="grid grid-cols-4 gap-2 items-stretch">
+              {/* 1 · 基础战斗力 */}
+              <StatBox
+                label="基础武勇"
+                sub="已上阵之和"
+                value={basePower}
+                valueClass="text-emerald-300"
+              />
+              {/* 2 · 阵法倍率 */}
+              <StatBox
+                label="阵法加成"
+                sub={rankLabel}
+                value={`×${rankMult}`}
+                valueClass={rankMult >= 5 ? 'text-gold-grad' : 'text-emerald-300'}
+              />
+              {/* 3 · 阵营加成 */}
+              <StatBox
+                label="同心加成"
+                sub={flushLabel}
+                value={`+${flushBonus}`}
+                valueClass={flushBonus > 0 ? 'text-red-300' : 'text-amber-200/40'}
+              />
+              {/* 4 · 军团军势（主视觉，金光 + 大号 + 动画） */}
+              <div
+                className={[
+                  'relative rounded-md px-2 py-2 text-center flex flex-col justify-center items-center',
+                  'border-2',
+                  highlight
+                    ? 'border-gold shadow-glow'
+                    : 'border-amber-700',
+                ].join(' ')}
+                style={{
+                  background: highlight
+                    ? 'linear-gradient(180deg, #fde68a 0%, #d4af37 55%, #8b6914 100%)'
+                    : 'linear-gradient(180deg, #3a2418 0%, #2a1810 55%, #1a0f08 100%)',
+                  boxShadow: highlight
+                    ? 'inset 0 1px 0 rgba(255,245,200,0.6), 0 0 14px rgba(212,175,55,0.6), 0 2px 6px rgba(0,0,0,0.8)'
+                    : 'inset 0 1px 0 rgba(255,200,120,0.25), 0 2px 4px rgba(0,0,0,0.7)',
+                }}
+              >
+                <div
+                  className={[
+                    'text-[10px] tracking-[0.3em] font-kai font-black leading-none',
+                    highlight ? 'text-[#3a1f00]' : 'text-gold-grad',
+                  ].join(' ')}
+                >
+                  軍 團 軍 勢
+                </div>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={finalPower}
+                    initial={{ y: -4, opacity: 0, scale: 1.3 }}
+                    animate={{ y: 0, opacity: 1, scale: 1 }}
+                    exit={{ y: 4, opacity: 0 }}
+                    className={[
+                      'text-2xl sm:text-3xl font-black tabular-nums font-kai leading-none mt-1',
+                      highlight ? 'text-[#2a1808]' : 'text-gold-grad animate-shine',
+                      capped ? 'drop-shadow-[0_0_6px_rgba(248,113,113,0.8)]' : '',
+                    ].join(' ')}
+                    style={{
+                      textShadow: highlight
+                        ? 'none'
+                        : '0 0 10px rgba(251,191,36,0.6), 0 2px 4px rgba(0,0,0,0.8)',
+                    }}
+                  >
+                    {finalPower}
+                  </motion.div>
+                </AnimatePresence>
+                {capped && (
+                  <span className="mt-1 text-[9px] text-red-200 px-1.5 py-0.5 rounded bg-red-900/60 border border-red-400/70 font-bold tracking-widest">
+                    封顶 {POWER_CAP}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* 公式一行（小字） */}
+            {full && evalResult && (
+              <div className="mt-2 flex items-center justify-center gap-1.5 text-[11px] font-kai text-amber-200/70 flex-wrap">
+                <span className="tabular-nums text-emerald-300/80">{basePower}</span>
+                <span>×</span>
+                <span>(</span>
+                <span className="tabular-nums text-emerald-300/80">{rankMult}</span>
+                <span>+</span>
+                <span className={['tabular-nums', flushBonus > 0 ? 'text-red-300' : 'text-amber-200/40'].join(' ')}>
+                  {flushBonus}
                 </span>
-              </>
+                <span>)</span>
+                <span>=</span>
+                <span className={['tabular-nums', capped ? 'text-red-400 line-through' : 'text-gold'].join(' ')}>
+                  {rawPower}
+                </span>
+                {capped && (
+                  <>
+                    <span>→</span>
+                    <span className="tabular-nums text-red-400">{POWER_CAP}</span>
+                  </>
+                )}
+              </div>
             )}
-          </div>
-        </motion.div>
-      )}
+          </motion.div>
+        );
+      })()}
 
       {/* Canvas + 交互层 */}
       <div className="relative w-full" style={{ aspectRatio: '16 / 10', minHeight: 280 }}>
@@ -1193,4 +1258,49 @@ function DraggableOverlay({ card }: { card: Card }) {
   };
 
   return <div ref={setNodeRef} style={style} {...listeners} {...attributes} />;
+}
+
+// ======================================================================
+// 四指标 banner 的普通小指标盒子
+// ======================================================================
+function StatBox({
+  label,
+  sub,
+  value,
+  valueClass = 'text-amber-100',
+}: {
+  label: string;
+  sub?: string;
+  value: number | string;
+  valueClass?: string;
+}) {
+  return (
+    <div
+      className="relative rounded-md px-2 py-2 text-center flex flex-col justify-center items-center border border-amber-900/60"
+      style={{
+        background: 'linear-gradient(180deg, rgba(58,36,24,0.7) 0%, rgba(26,15,8,0.9) 100%)',
+        boxShadow: 'inset 0 1px 0 rgba(255,200,120,0.12), 0 1px 2px rgba(0,0,0,0.5)',
+      }}
+    >
+      <div className="text-[10px] tracking-[0.25em] font-kai font-black text-amber-200/75 leading-none">
+        {label}
+      </div>
+      <div
+        className={[
+          'text-xl sm:text-2xl font-black tabular-nums font-kai leading-none mt-1',
+          valueClass,
+        ].join(' ')}
+        style={{
+          textShadow: '0 2px 3px rgba(0,0,0,0.8)',
+        }}
+      >
+        {value}
+      </div>
+      {sub && (
+        <div className="text-[9px] text-amber-100/45 italic mt-1 leading-tight truncate max-w-full">
+          {sub}
+        </div>
+      )}
+    </div>
+  );
 }
