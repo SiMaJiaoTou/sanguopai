@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
 import { PerspectiveCamera, Text, Cylinder, Plane } from '@react-three/drei';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -503,101 +503,22 @@ function SlotTile({
 // ======================================================================
 
 function MapGround() {
-  const texture = useMemo(() => {
-    const c = document.createElement('canvas');
-    c.width = 1024;
-    c.height = 640;
-    const ctx = c.getContext('2d')!;
+  // 直接加载美术地面贴图 · public/scene.png
+  const texture = useLoader(THREE.TextureLoader, '/scene.png');
 
-    // 雪地米黄底
-    const grad = ctx.createRadialGradient(512, 320, 100, 512, 320, 700);
-    grad.addColorStop(0, '#f2e6cb');
-    grad.addColorStop(0.5, '#ddc89a');
-    grad.addColorStop(1, '#a89070');
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, 1024, 640);
+  useMemo(() => {
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.anisotropy = 8;
+    // 不重复：整张图铺满地面，比阵法站位略大一圈以覆盖所有视角
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.needsUpdate = true;
+    return texture;
+  }, [texture]);
 
-    // 水墨河流（柔和灰蓝）
-    ctx.strokeStyle = 'rgba(100, 110, 110, 0.28)';
-    ctx.lineWidth = 14;
-    ctx.lineCap = 'round';
-    for (let i = 0; i < 4; i++) {
-      ctx.beginPath();
-      const y0 = 100 + i * 150;
-      ctx.moveTo(-20, y0);
-      for (let x = 0; x <= 1040; x += 60) {
-        const y = y0 + Math.sin(x * 0.008 + i * 1.3) * 30;
-        ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-    }
-    // 河流深色描边
-    ctx.strokeStyle = 'rgba(80, 90, 100, 0.22)';
-    ctx.lineWidth = 3;
-    for (let i = 0; i < 4; i++) {
-      ctx.beginPath();
-      const y0 = 100 + i * 150;
-      ctx.moveTo(-20, y0);
-      for (let x = 0; x <= 1040; x += 60) {
-        const y = y0 + Math.sin(x * 0.008 + i * 1.3) * 30;
-        ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-    }
-
-    // 远山轮廓（雪山）
-    ctx.fillStyle = 'rgba(140, 140, 140, 0.35)';
-    for (let i = 0; i < 10; i++) {
-      const cx = i * 110 + 50;
-      const cy = 50 + (i % 4) * 12;
-      ctx.beginPath();
-      ctx.moveTo(cx - 60, cy + 40);
-      ctx.lineTo(cx - 20, cy);
-      ctx.lineTo(cx, cy + 15);
-      ctx.lineTo(cx + 30, cy - 5);
-      ctx.lineTo(cx + 60, cy + 20);
-      ctx.lineTo(cx + 90, cy + 40);
-      ctx.closePath();
-      ctx.fill();
-    }
-    // 雪山顶白雪
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
-    for (let i = 0; i < 10; i++) {
-      const cx = i * 110 + 50;
-      const cy = 50 + (i % 4) * 12;
-      ctx.beginPath();
-      ctx.moveTo(cx - 20, cy);
-      ctx.lineTo(cx - 5, cy + 8);
-      ctx.lineTo(cx + 5, cy + 5);
-      ctx.lineTo(cx + 30, cy - 5);
-      ctx.lineTo(cx + 15, cy - 3);
-      ctx.closePath();
-      ctx.fill();
-    }
-
-    // 城郭（右上角，参考图有）
-    ctx.fillStyle = 'rgba(70, 60, 50, 0.4)';
-    ctx.fillRect(900, 40, 80, 40);
-    ctx.fillRect(920, 20, 40, 20);
-    ctx.fillRect(940, 60, 20, 30);
-
-    // 墨点散点
-    ctx.fillStyle = 'rgba(60, 50, 40, 0.18)';
-    for (let i = 0; i < 120; i++) {
-      const x = Math.random() * 1024;
-      const y = Math.random() * 640;
-      ctx.beginPath();
-      ctx.arc(x, y, Math.random() * 2 + 0.3, 0, Math.PI * 2);
-      ctx.fill();
-    }
-
-    const tex = new THREE.CanvasTexture(c);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    return tex;
-  }, []);
-
+  // 地面足够大（50×50），保证任何运镜都不会露出边缘
   return (
-    <Plane args={[20, 12]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
+    <Plane args={[50, 50]} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]}>
       <meshStandardMaterial map={texture} roughness={0.98} />
     </Plane>
   );
@@ -994,7 +915,6 @@ export function BattleField3D({
         const basePower = cards.reduce((s, c) => s + (c?.pointValue ?? 0), 0);
         const rankMult = full && evalResult ? evalResult.rankType.score : 1;
         const flushBonus = full && evalResult ? evalResult.suitBonus : 0;
-        const rawPower = full && evalResult ? evalResult.rawPower : basePower * (rankMult + flushBonus);
         const capped = full && evalResult ? evalResult.capped : false;
         const finalPower = full && evalResult ? evalResult.power : basePower;
         const flushLabel = full && evalResult && evalResult.isFlush ? '阵营同心' : '—';
@@ -1087,31 +1007,6 @@ export function BattleField3D({
                 )}
               </div>
             </div>
-
-            {/* 公式一行（小字） */}
-            {full && evalResult && (
-              <div className="mt-2 flex items-center justify-center gap-1.5 text-[11px] font-kai text-amber-200/70 flex-wrap">
-                <span className="tabular-nums text-emerald-300/80">{basePower}</span>
-                <span>×</span>
-                <span>(</span>
-                <span className="tabular-nums text-emerald-300/80">{rankMult}</span>
-                <span>+</span>
-                <span className={['tabular-nums', flushBonus > 0 ? 'text-red-300' : 'text-amber-200/40'].join(' ')}>
-                  {flushBonus}
-                </span>
-                <span>)</span>
-                <span>=</span>
-                <span className={['tabular-nums', capped ? 'text-red-400 line-through' : 'text-gold'].join(' ')}>
-                  {rawPower}
-                </span>
-                {capped && (
-                  <>
-                    <span>→</span>
-                    <span className="tabular-nums text-red-400">{POWER_CAP}</span>
-                  </>
-                )}
-              </div>
-            )}
           </motion.div>
         );
       })()}
