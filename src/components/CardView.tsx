@@ -5,8 +5,6 @@ import { FACTION_THEME } from '../data';
 
 interface Props {
   card: Card;
-  canRedraw?: boolean;
-  onRedraw?: (id: string) => void;
   compact?: boolean;
   highlight?: boolean;
   /** 显式尺寸（px）—— 传入后使用自适应尺寸，忽略 compact */
@@ -27,8 +25,6 @@ interface Props {
  */
 export function CardView({
   card,
-  canRedraw,
-  onRedraw,
   compact,
   highlight,
   width,
@@ -167,23 +163,6 @@ export function CardView({
       >
         {card.name}
       </div>
-
-      {canRedraw && (
-        <button
-          type="button"
-          onPointerDown={(e) => {
-            e.stopPropagation();
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onRedraw?.(card.id);
-          }}
-          className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-gold text-ink text-xs font-bold shadow-md hover:animate-spin z-20"
-          title="消耗 1 次换牌次数"
-        >
-          ⟳
-        </button>
-      )}
     </motion.div>
   );
 }

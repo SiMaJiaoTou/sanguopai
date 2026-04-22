@@ -8,8 +8,6 @@ interface Props {
   teamIndex: number;
   cards: (Card | null)[];
   evalResult: EvaluateResult | null;
-  canRedraw: boolean;
-  onRedraw: (id: string) => void;
 }
 
 const SLOTS = 5;
@@ -18,7 +16,7 @@ const MIN_W = 60;
 const MAX_W = 96;
 const RATIO = 136 / 96;
 
-export function TeamPanel({ teamIndex, cards, evalResult, canRedraw, onRedraw }: Props) {
+export function TeamPanel({ teamIndex, cards, evalResult }: Props) {
   const full = cards.every((c) => c !== null);
   // 高倍率判定：点数值 ≥ 6 或达成同花
   const highlight = !!evalResult && (evalResult.rankType.score >= 6 || evalResult.isFlush);
@@ -183,8 +181,6 @@ export function TeamPanel({ teamIndex, cards, evalResult, canRedraw, onRedraw }:
             teamIndex={teamIndex}
             slotIndex={si}
             card={c}
-            canRedraw={canRedraw}
-            onRedraw={onRedraw}
             width={cardW}
             height={cardH}
           />

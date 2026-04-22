@@ -210,11 +210,6 @@ export default function App() {
   const expNeed =
     state.recruitLevel >= 6 ? Infinity : LEVEL_EXP_REQUIRED[state.recruitLevel];
 
-  // redraw 判定
-  const canRedrawFree = state.freeRedrawsLeft > 0 && !state.isFinished;
-  const canRedrawAny =
-    (canRedrawFree || state.gold >= ECONOMY_CONFIG.paidRedrawCost) && !state.isFinished;
-
   return (
     <div className="min-h-screen bg-scroll">
       <TopBar
@@ -250,16 +245,6 @@ export default function App() {
         }}
       >
         <div className="max-w-[1400px] mx-auto p-3 sm:p-6 grid grid-cols-12 gap-4 sm:gap-6">
-          {/* 移动端：换将令置顶 */}
-          <div className="col-span-12 lg:hidden">
-            <RedrawZone
-              freeRedrawsLeft={state.freeRedrawsLeft}
-              gold={state.gold}
-              paidCost={ECONOMY_CONFIG.paidRedrawCost}
-              compact
-            />
-          </div>
-
           {/* 左主栏 */}
           <div className="col-span-12 lg:col-span-8 space-y-4 sm:space-y-6">
             {/* 军团页签（双队列时显示） */}
@@ -280,8 +265,6 @@ export default function App() {
                 teamIndex={0}
                 cards={state.teams[0]}
                 evalResult={team0Eval}
-                canRedraw={canRedrawAny}
-                onRedraw={state.redraw}
               />
             )}
             {teamsRequired >= 2 && activeTeamIndex === 1 && (
@@ -289,8 +272,6 @@ export default function App() {
                 teamIndex={1}
                 cards={state.teams[1]}
                 evalResult={team1Eval}
-                canRedraw={canRedrawAny}
-                onRedraw={state.redraw}
               />
             )}
 
@@ -335,10 +316,14 @@ export default function App() {
               </div>
             </div>
 
-            <HandArea
-              cards={state.hand}
-              canRedraw={canRedrawAny}
-              onRedraw={state.redraw}
+            <HandArea cards={state.hand} />
+
+            {/* 换将令（统一放在待命武将下方） */}
+            <RedrawZone
+              freeRedrawsLeft={state.freeRedrawsLeft}
+              gold={state.gold}
+              paidCost={ECONOMY_CONFIG.paidRedrawCost}
+              compact
             />
 
             <div className="text-[11px] text-amber-200/50 leading-relaxed border-t border-amber-900/30 pt-3 italic">
@@ -352,13 +337,6 @@ export default function App() {
 
           {/* 右侧栏 */}
           <div className="col-span-12 lg:col-span-4 space-y-4">
-            <div className="hidden lg:block">
-              <RedrawZone
-                freeRedrawsLeft={state.freeRedrawsLeft}
-                gold={state.gold}
-                paidCost={ECONOMY_CONFIG.paidRedrawCost}
-              />
-            </div>
             <RecruitPanel
               gold={state.gold}
               buyCount={state.buyCount}

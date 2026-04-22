@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ECONOMY_CONFIG, LEVEL_EXP_REQUIRED, LEVEL_UNLOCK_TABLE } from '../data';
+import { LEVEL_EXP_REQUIRED, LEVEL_UNLOCK_TABLE } from '../data';
 import { buyCardPrice } from '../store';
 
 interface Props {
@@ -40,8 +40,8 @@ export function RecruitPanel({
 
   const isMax = recruitLevel >= 6;
   const expNeed = isMax ? 0 : LEVEL_EXP_REQUIRED[recruitLevel];
-  const expRemaining = isMax ? 0 : Math.max(0, expNeed - recruitExp);
-  const upgradeCost = expRemaining * ECONOMY_CONFIG.upgradeExpPerGold;
+  // 每次点击 -1 金币 +1 威望，满则升级
+  const upgradeCost = isMax ? 0 : 1;
   const canUpgrade = !disabled && !isMax && gold >= upgradeCost;
 
   const expPercent = isMax ? 100 : Math.min(100, (recruitExp / expNeed) * 100);
@@ -65,7 +65,7 @@ export function RecruitPanel({
         <div className="flex items-baseline justify-between mb-1">
           <span className="text-[11px] text-amber-100/70 tracking-widest font-kai">威 望</span>
           <span className="text-[11px] text-gold-grad tabular-nums font-black">
-            {isMax ? '━━ 滿級 ━━' : `${recruitExp} / ${expNeed}`}
+            {isMax ? '━━ 满级 ━━' : `${recruitExp} / ${expNeed}`}
           </span>
         </div>
         <div
@@ -87,7 +87,7 @@ export function RecruitPanel({
           />
         </div>
         <div className="text-[10px] text-amber-100/60 mt-1.5">
-          已解鎖：
+          已解锁：
           <span className="text-gold-grad font-kai font-black tracking-wider ml-1">
             {unlockedLabelShort(recruitLevel)}
           </span>
@@ -120,23 +120,23 @@ export function RecruitPanel({
           title={
             isMax
               ? '已达满级'
-              : `直升 Lv.${recruitLevel + 1}：消耗 ${upgradeCost} 金币`
+              : `消耗 1 金币获得 1 威望（满 ${expNeed} 自动升级至 Lv.${recruitLevel + 1}）`
           }
         >
           <div className="flex flex-col items-center gap-0.5">
             <div className="text-sm font-black flex items-center gap-1 tracking-[0.3em]">
               <span>⬆</span>
-              <span>{isMax ? '滿級' : '擢升'}</span>
+              <span>{isMax ? '满级' : '擢升'}</span>
             </div>
             <div className="text-[11px] tabular-nums font-black">
-              {isMax ? 'MAX' : `🪙 ${upgradeCost}`}
+              {isMax ? 'MAX' : `🪙 1 → +1 威望`}
             </div>
           </div>
         </button>
       </div>
 
       <div className="text-[10px] text-amber-100/50 leading-relaxed border-t border-amber-900 pt-2 italic">
-        ◈ 招募第 N 次需 N 金币 · 擢升 1 金币 ＝ 1 威望 · 每年自动得少量威望
+        ◈ 招募第 N 次需 N 金币 · 每次擢升：1 金币 → 1 威望 · 每年自动获威望
       </div>
     </div>
   );

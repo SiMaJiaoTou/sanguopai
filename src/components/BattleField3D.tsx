@@ -12,8 +12,6 @@ interface Props {
   teamIndex: number;
   cards: (Card | null)[];
   evalResult: EvaluateResult | null;
-  canRedraw: boolean;
-  onRedraw: (id: string) => void;
 }
 
 /** 阵营配色（旗帜色为主） */
@@ -915,8 +913,6 @@ export function BattleField3D({
   teamIndex,
   cards,
   evalResult,
-  canRedraw: _canRedraw,
-  onRedraw: _onRedraw,
 }: Props) {
   const full = cards.every((c) => c !== null);
   const highlight = !!evalResult && (evalResult.rankType.score >= 6 || evalResult.isFlush);

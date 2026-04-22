@@ -249,20 +249,28 @@ export const useGameStore = create<GameState>((set, get) => ({
       set({ lastMessage: '已达满级 (Lv.6)' });
       return;
     }
-    const need = LEVEL_EXP_REQUIRED[state.recruitLevel];
-    const remaining = need - state.recruitExp;
-    // 升一级所需金币 = 剩余所需经验（1 金币 = 1 经验）
-    if (state.gold < remaining) {
-      set({ lastMessage: `升级需 ${remaining} 金币（当前 ${state.gold}）` });
+    if (state.gold < 1) {
+      set({ lastMessage: '金币不足（需 1 金币购买 1 威望）' });
       return;
     }
-    const nextLevel = (state.recruitLevel + 1) as RecruitLevel;
-    set({
-      gold: state.gold - remaining,
-      recruitLevel: nextLevel,
-      recruitExp: 0,
-      lastMessage: `招募等级提升至 Lv.${nextLevel}！解锁新卡池`,
-    });
+    const need = LEVEL_EXP_REQUIRED[state.recruitLevel];
+    const newExp = state.recruitExp + 1;
+    if (newExp >= need) {
+      // 购买这一点经验后恰好升级
+      const nextLevel = (state.recruitLevel + 1) as RecruitLevel;
+      set({
+        gold: state.gold - 1,
+        recruitLevel: nextLevel,
+        recruitExp: 0,
+        lastMessage: `招募等级提升至 Lv.${nextLevel}！解锁新卡池`,
+      });
+    } else {
+      set({
+        gold: state.gold - 1,
+        recruitExp: newExp,
+        lastMessage: `威望 +1（${newExp}/${need}）`,
+      });
+    }
   },
 
   nextRound: (snapshot) => {

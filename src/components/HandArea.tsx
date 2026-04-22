@@ -5,11 +5,9 @@ import { CardView } from './CardView';
 
 interface Props {
   cards: Card[];
-  canRedraw: boolean;
-  onRedraw: (id: string) => void;
 }
 
-export function HandArea({ cards, canRedraw, onRedraw }: Props) {
+export function HandArea({ cards }: Props) {
   const { setNodeRef, isOver } = useDroppable({
     id: 'hand-area',
     data: { type: 'hand' },
@@ -49,7 +47,7 @@ export function HandArea({ cards, canRedraw, onRedraw }: Props) {
       <div className="flex flex-wrap gap-3 relative">
         <AnimatePresence>
           {cards.map((c) => (
-            <CardView key={c.id} card={c} canRedraw={canRedraw} onRedraw={onRedraw} />
+            <CardView key={c.id} card={c} />
           ))}
         </AnimatePresence>
         {cards.length === 0 && (

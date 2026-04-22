@@ -6,8 +6,6 @@ interface SlotProps {
   teamIndex: number;
   slotIndex: number;
   card: Card | null;
-  canRedraw: boolean;
-  onRedraw: (id: string) => void;
   width?: number;
   height?: number;
 }
@@ -16,8 +14,6 @@ export function TeamSlot({
   teamIndex,
   slotIndex,
   card,
-  canRedraw,
-  onRedraw,
   width,
   height,
 }: SlotProps) {
@@ -55,8 +51,6 @@ export function TeamSlot({
       {card ? (
         <CardView
           card={card}
-          canRedraw={canRedraw}
-          onRedraw={onRedraw}
           width={width}
           height={height}
         />
