@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Card, EvaluateResult } from '../types';
-import { POWER_CAP } from '../evaluate';
 import { TeamSlot } from './TeamSlot';
 
 interface Props {
@@ -146,26 +145,12 @@ export function TeamPanel({ teamIndex, cards, evalResult }: Props) {
             </span>
             <span className="text-amber-200/50 text-base">)</span>
             <span className="text-amber-200/50 text-base">=</span>
-            <span
-              className={[
-                'tabular-nums',
-                evalResult.capped ? 'text-red-400 line-through' : 'text-gold-grad',
-              ].join(' ')}
-            >
+            <span className="tabular-nums text-gold-grad">
               {evalResult.rawPower}
             </span>
-            {evalResult.capped && (
-              <>
-                <span className="text-amber-200/50 text-base">→</span>
-                <span className="text-red-400 tabular-nums">{POWER_CAP}</span>
-                <span className="text-[10px] text-red-300 px-1.5 py-0.5 rounded bg-red-500/20 border border-red-400/60 font-bold tracking-widest">
-                  封顶
-                </span>
-              </>
-            )}
           </div>
           <div className="text-center text-[10px] text-amber-200/40 mt-1 italic">
-            点数和 × (点数牌型值 + 同花加成) = 战力{evalResult.capped && ' · 最高 803'}
+            点数和 × (点数牌型值 + 同花加成) = 战力
           </div>
         </motion.div>
       )}

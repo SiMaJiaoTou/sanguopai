@@ -31,9 +31,9 @@ export interface EvaluateResult {
   isFlush: boolean;
   multiplier: number;     // rankType.score + suitBonus
   pointSum: number;       // 5 张点数总和
-  rawPower: number;       // pointSum × multiplier（未封顶）
-  power: number;          // 封顶后的战力
-  capped: boolean;        // 是否触发了 803 封顶
+  rawPower: number;       // pointSum × multiplier
+  power: number;          // 最终军势（= rawPower，无封顶）
+  capped: boolean;        // 保留字段，恒为 false
 }
 
 /** 回合配置 */

@@ -5,7 +5,6 @@ import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { AnimatePresence, motion } from 'framer-motion';
 import * as THREE from 'three';
 import type { Card, EvaluateResult, Faction } from '../types';
-import { POWER_CAP } from '../evaluate';
 import { FORMATIONS } from '../formations';
 
 interface Props {
@@ -927,7 +926,6 @@ export function BattleField3D({
         const basePower = cards.reduce((s, c) => s + (c?.pointValue ?? 0), 0);
         const rankMult = full && evalResult ? evalResult.rankType.score : 1;
         const flushBonus = full && evalResult ? evalResult.suitBonus : 0;
-        const capped = full && evalResult ? evalResult.capped : false;
         const finalPower = full && evalResult ? evalResult.power : basePower;
         const flushLabel = full && evalResult && evalResult.isFlush ? '阵营同心' : '—';
         const rankLabel = full && evalResult ? evalResult.rankType.name : `配阵中 · ${placedCount}/5`;
@@ -1001,7 +999,6 @@ export function BattleField3D({
                     className={[
                       'text-2xl sm:text-3xl font-black tabular-nums font-kai leading-none mt-1',
                       highlight ? 'text-[#2a1808]' : 'text-gold-grad animate-shine',
-                      capped ? 'drop-shadow-[0_0_6px_rgba(248,113,113,0.8)]' : '',
                     ].join(' ')}
                     style={{
                       textShadow: highlight
@@ -1012,11 +1009,6 @@ export function BattleField3D({
                     {finalPower}
                   </motion.div>
                 </AnimatePresence>
-                {capped && (
-                  <span className="mt-1 text-[9px] text-red-200 px-1.5 py-0.5 rounded bg-red-900/60 border border-red-400/70 font-bold tracking-widest">
-                    封顶 {POWER_CAP}
-                  </span>
-                )}
               </div>
             </div>
           </motion.div>

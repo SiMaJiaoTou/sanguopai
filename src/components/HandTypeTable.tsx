@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { RANK_TYPES, SUIT_BONUS, POWER_CAP } from '../evaluate';
+import { RANK_TYPES, SUIT_BONUS } from '../evaluate';
 import { RANK_DESCRIPTIONS, SUIT_BONUS_DESC } from '../handDescriptions';
 import type { RankTypeKey } from '../types';
 
@@ -65,7 +65,7 @@ export function HandTypeTable({ activeRankKeys = [], anyFlush = false }: Props) 
         <span className="text-gold-grad font-black">阵法</span>
         <span className="mx-0.5 opacity-50">＋</span>
         <span className="text-red-300 font-black">同心</span>
-        ) · 封顶 {POWER_CAP}
+        )
       </div>
 
       {/* 乘区一 · 阵法 */}

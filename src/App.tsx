@@ -331,9 +331,9 @@ export default function App() {
             <div className="text-[11px] text-amber-200/50 leading-relaxed border-t border-amber-900/30 pt-3 italic">
               ◈ 本年目标：填满 <span className="text-gold font-bold">{teamsRequired}</span> 队 ·
               手牌 <span className="text-gold tabular-nums">{state.hand.length + state.teams.flat().filter(Boolean).length}</span> 员 ·
-              战力 = <span className="text-emerald-300">点数和</span> ×
-              (<span className="text-emerald-300">点数牌型</span> +
-              <span className="text-gold">同花加成</span>)，上限 <span className="text-red-300">803</span>
+              军势 = <span className="text-emerald-300">武勇和</span> ×
+              (<span className="text-emerald-300">阵法加成</span> +
+              <span className="text-gold">同心加成</span>)
             </div>
           </div>
 

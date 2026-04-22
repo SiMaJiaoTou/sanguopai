@@ -24,9 +24,6 @@ export const SUIT_BONUS = {
   NONE: { key: 'NONE' as const, name: '未同心', bonus: 0 },
 };
 
-/** 战力硬性封顶 */
-export const POWER_CAP = 803;
-
 /** 顺子判定：5 张互不相同且点数连续 */
 function isStraight(sortedDescValues: number[]): boolean {
   const unique = new Set(sortedDescValues);
@@ -53,8 +50,8 @@ function countsEq(a: number[], b: number[]): boolean {
 }
 
 /**
- * 核心评估函数 —— PRD-Revision 版
- * 战力 = pointSum × (rankScore + suitBonus)，最高 803
+ * 核心评估函数
+ * 战力 = pointSum × (rankScore + suitBonus)（无封顶）
  */
 export function evaluateHand(cards: Card[]): EvaluateResult | null {
   if (!cards || cards.length !== 5) return null;
@@ -79,8 +76,6 @@ export function evaluateHand(cards: Card[]): EvaluateResult | null {
   const suitBonus = flush ? SUIT_BONUS.FLUSH.bonus : SUIT_BONUS.NONE.bonus;
   const multiplier = rankType.score + suitBonus;
   const rawPower = pointSum * multiplier;
-  const power = Math.min(rawPower, POWER_CAP);
-  const capped = rawPower > POWER_CAP;
 
   return {
     rankType,
@@ -89,7 +84,7 @@ export function evaluateHand(cards: Card[]): EvaluateResult | null {
     multiplier,
     pointSum,
     rawPower,
-    power,
-    capped,
+    power: rawPower,
+    capped: false,
   };
 }

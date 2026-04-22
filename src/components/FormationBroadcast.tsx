@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { EvaluateResult } from '../types';
 import { FORMATIONS, FLUSH_BROADCAST } from '../formations';
-import { POWER_CAP } from '../evaluate';
 
 interface Props {
   evalResult: EvaluateResult | null;
@@ -15,7 +14,6 @@ export function FormationBroadcast({ evalResult, teamIndex }: Props) {
     formation: (typeof FORMATIONS)[keyof typeof FORMATIONS];
     isFlush: boolean;
     power: number;
-    capped: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -26,7 +24,6 @@ export function FormationBroadcast({ evalResult, teamIndex }: Props) {
       formation,
       isFlush: evalResult.isFlush,
       power: evalResult.power,
-      capped: evalResult.capped,
     });
     const t = setTimeout(() => setBanner(null), 3200);
     return () => clearTimeout(t);
@@ -142,34 +139,18 @@ export function FormationBroadcast({ evalResult, teamIndex }: Props) {
                   軍 勢
                 </span>
                 <span
-                  className={[
-                    'text-5xl sm:text-6xl font-black tabular-nums font-kai',
-                    banner.capped ? 'text-red-300' : '',
-                  ].join(' ')}
+                  className="text-5xl sm:text-6xl font-black tabular-nums font-kai"
                   style={{
-                    background: banner.capped
-                      ? undefined
-                      : 'linear-gradient(180deg, #fff5cc 0%, #f7d57a 30%, #d4af37 55%, #6b4a10 100%)',
-                    WebkitBackgroundClip: banner.capped ? undefined : 'text',
-                    WebkitTextFillColor: banner.capped ? undefined : 'transparent',
+                    background:
+                      'linear-gradient(180deg, #fff5cc 0%, #f7d57a 30%, #d4af37 55%, #6b4a10 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
                     filter:
                       'drop-shadow(0 0 16px rgba(212,175,55,0.75)) drop-shadow(0 2px 4px rgba(0,0,0,0.9))',
                   }}
                 >
                   {banner.power}
                 </span>
-                {banner.capped && (
-                  <span
-                    className="text-[10px] text-red-100 px-2 py-0.5 rounded font-bold tracking-widest"
-                    style={{
-                      background: 'linear-gradient(180deg, #c82828, #5a0808)',
-                      border: '1px solid #2a0404',
-                      boxShadow: 'inset 0 1px 0 rgba(255,180,160,0.5)',
-                    }}
-                  >
-                    封顶 {POWER_CAP}
-                  </span>
-                )}
               </motion.div>
             </div>
           </motion.div>
