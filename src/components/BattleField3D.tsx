@@ -1054,7 +1054,7 @@ export function BattleField3D({
               toneMapping: THREE.ACESFilmicToneMapping,
               outputColorSpace: THREE.SRGBColorSpace,
             }}
-            style={{ background: 'transparent', position: 'relative', zIndex: 1 }}
+            style={{ background: 'transparent', position: 'relative' }}
           >
             <PerspectiveCamera
               makeDefault
@@ -1107,7 +1107,7 @@ function SlotOverlayGrid({
   };
 
   return (
-    <div className="absolute inset-0 pointer-events-none">
+    <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 20 }}>
       {cards.map((card, i) => {
         const p = projected[i];
         if (!p) return null;
