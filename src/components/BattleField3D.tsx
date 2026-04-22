@@ -1266,9 +1266,17 @@ function FormationBurst({
   const activeRef = useRef<boolean>(false);
   const [, setTick] = useState(0);
   const lastKey = useRef<string | null>(null);
+  const isFirstMount = useRef<boolean>(true);
 
   // 观察 triggerKey 变化 → 触发新 burst
   useEffect(() => {
+    // 初次挂载（例如切换前后军导致 BattleField3D 重新 mount）时，
+    // 若 triggerKey 已有值，仅记录但不播放特效，避免切换队伍时重复触发
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      lastKey.current = triggerKey;
+      return;
+    }
     if (!triggerKey || triggerKey === lastKey.current) return;
     lastKey.current = triggerKey;
 

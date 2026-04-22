@@ -1,13 +1,24 @@
 import { motion } from 'framer-motion';
+import type { PowerSnapshot } from '../store';
+import { PowerChart } from './PowerChart';
 
 interface Props {
   totalPower: number;
   gold: number;
   recruitLevel: number;
   onRestart: () => void;
+  powerHistory: PowerSnapshot[];
+  currentRound: number;
 }
 
-export function GameOverModal({ totalPower, gold, recruitLevel, onRestart }: Props) {
+export function GameOverModal({
+  totalPower,
+  gold,
+  recruitLevel,
+  onRestart,
+  powerHistory,
+  currentRound,
+}: Props) {
   const rank =
     totalPower >= 1500
       ? '一 统 天 下'
@@ -45,7 +56,7 @@ export function GameOverModal({ totalPower, gold, recruitLevel, onRestart }: Pro
         initial={{ scaleY: 0.06, opacity: 0 }}
         animate={{ scaleY: 1, opacity: 1 }}
         transition={{ duration: 0.7, ease: [0.2, 0.8, 0.2, 1] }}
-        className="relative w-full max-w-[560px]"
+        className="relative w-full max-w-[680px]"
         style={{ transformOrigin: 'center' }}
       >
         {/* 上轴承 */}
@@ -178,6 +189,20 @@ export function GameOverModal({ totalPower, gold, recruitLevel, onRestart }: Pro
                 Lv.{recruitLevel}
               </div>
             </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 1.55 }}
+            className="mb-6 -mx-2 sm:-mx-4"
+          >
+            <PowerChart
+              history={powerHistory}
+              currentRound={currentRound}
+              currentTotalPower={totalPower}
+              isFinished
+            />
           </motion.div>
 
           <motion.button

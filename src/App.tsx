@@ -371,6 +371,8 @@ export default function App() {
             gold={state.gold}
             recruitLevel={state.recruitLevel}
             onRestart={handleRestart}
+            powerHistory={state.powerHistory}
+            currentRound={state.round}
           />
         )}
       </AnimatePresence>
