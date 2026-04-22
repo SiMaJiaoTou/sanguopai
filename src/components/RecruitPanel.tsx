@@ -12,18 +12,20 @@ interface Props {
   disabled?: boolean;
 }
 
-function unlockedLabelShort(level: number): string {
+/**
+ * 解锁战斗力展示：
+ * - 连续区间直接显示 "min ~ max"
+ * - 若只有一个值则显示该数字
+ * - 若不连续（一般不会发生），逗号分隔全部
+ */
+function unlockedPowerLabel(level: number): string {
   const values = LEVEL_UNLOCK_TABLE[level] ?? [];
-  if (values.length === 0) return '-';
-  const labels = values.map((v) => {
-    if (v === 15) return '2';
-    if (v === 14) return 'A';
-    if (v === 13) return 'K';
-    if (v === 12) return 'Q';
-    if (v === 11) return 'J';
-    return String(v);
-  });
-  return labels.join(' ');
+  if (values.length === 0) return '—';
+  const sorted = [...values].sort((a, b) => a - b);
+  const isContiguous = sorted.every((v, i) => i === 0 || v === sorted[i - 1] + 1);
+  if (sorted.length === 1) return String(sorted[0]);
+  if (isContiguous) return `${sorted[0]} ~ ${sorted[sorted.length - 1]}`;
+  return sorted.join('、');
 }
 
 export function RecruitPanel({
@@ -110,10 +112,11 @@ export function RecruitPanel({
           </motion.div>
         </div>
         <div className="text-[10px] text-amber-100/65 mt-2 tracking-wider">
-          已解锁 ·
-          <span className="text-gold-grad font-kai font-black tracking-[0.22em] ml-1">
-            {unlockedLabelShort(recruitLevel)}
+          已解锁战斗力为
+          <span className="text-gold-grad font-kai font-black tracking-[0.18em] mx-1">
+            {unlockedPowerLabel(recruitLevel)}
           </span>
+          的武将
         </div>
       </div>
 
