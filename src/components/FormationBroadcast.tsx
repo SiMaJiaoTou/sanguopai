@@ -8,6 +8,9 @@ interface Props {
   teamEvals: (EvaluateResult | null)[];
 }
 
+/** 总展示时长（ms）：0.25s 弹入 + 0.6s 停留 + 0.55s 上飘淡出 ≈ 1.4s */
+const BANNER_DURATION = 1400;
+
 export function FormationBroadcast({ teamEvals }: Props) {
   const [banner, setBanner] = useState<{
     id: number;
@@ -21,16 +24,12 @@ export function FormationBroadcast({ teamEvals }: Props) {
   const lastSigs = useRef<(string | null)[]>([]);
 
   useEffect(() => {
-    // 逐队检测：仅当某队签名从旧值变为新的非空值时才触发播报
     for (let i = 0; i < teamEvals.length; i++) {
       const ev = teamEvals[i];
       const sig = ev ? `${ev.rankType.key}|${ev.isFlush}` : null;
       const prev = lastSigs.current[i] ?? null;
-
       if (sig !== prev) {
         lastSigs.current[i] = sig;
-        // 仅当新签名非 null（从无阵到成阵 / 阵法变化）才播报；
-        // 从成阵回到未成阵（拖走武将）不触发
         if (sig && ev) {
           const formation = FORMATIONS[ev.rankType.key];
           setBanner({
@@ -45,10 +44,9 @@ export function FormationBroadcast({ teamEvals }: Props) {
     }
   }, [teamEvals]);
 
-  // 横幅 3.2 秒后自动消失
   useEffect(() => {
     if (!banner) return;
-    const t = setTimeout(() => setBanner(null), 3200);
+    const t = setTimeout(() => setBanner(null), BANNER_DURATION);
     return () => clearTimeout(t);
   }, [banner?.id]);
 
@@ -57,66 +55,62 @@ export function FormationBroadcast({ teamEvals }: Props) {
       {banner && (
         <motion.div
           key={banner.id}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.3 }}
+          // 弹入：快速放大+下落（y 从 -20 到 0）
+          // 退出：向上飘出屏幕 + 淡出
+          initial={{ opacity: 0, y: -30, scale: 0.85 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -220, scale: 0.92 }}
+          transition={{
+            opacity: { duration: 0.2 },
+            y: { duration: 0.55, ease: [0.4, 0, 0.2, 1] },
+            scale: { duration: 0.22, ease: [0.2, 1.2, 0.3, 1] },
+          }}
           className="fixed inset-x-0 top-[22%] z-40 pointer-events-none"
         >
-          {/* 横幅整体 */}
-          <motion.div
-            initial={{ scaleX: 0.1, opacity: 0 }}
-            animate={{ scaleX: 1, opacity: 1 }}
-            exit={{ scaleX: 0.3, opacity: 0 }}
-            transition={{ duration: 0.55, ease: [0.2, 0.9, 0.2, 1] }}
-            className="relative proclaim-band py-6 sm:py-8 overflow-hidden"
-            style={{ transformOrigin: 'center' }}
-          >
+          <div className="relative proclaim-band py-5 sm:py-6 overflow-hidden">
             <EmberLayer />
 
             {/* 左右悬挂印章 */}
-            <div
-              className="absolute left-4 sm:left-10 top-1/2 -translate-y-1/2 seal-red w-14 h-14 text-base flex items-center justify-center font-kai z-10"
-              style={{ letterSpacing: 0, transform: 'translateY(-50%) rotate(-8deg)' }}
+            <motion.div
+              initial={{ opacity: 0, x: -16 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.18, delay: 0.05 }}
+              className="absolute left-4 sm:left-10 top-1/2 seal-red w-12 h-12 text-base flex items-center justify-center font-kai z-10"
+              style={{
+                letterSpacing: 0,
+                transform: 'translateY(-50%) rotate(-8deg)',
+              }}
             >
               {banner.teamIndex === 0 ? '前' : '后'}
-            </div>
-            <div
-              className="absolute right-4 sm:right-10 top-1/2 -translate-y-1/2 seal-red w-14 h-14 text-base flex items-center justify-center font-kai z-10"
-              style={{ letterSpacing: 0, transform: 'translateY(-50%) rotate(8deg)' }}
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, x: 16 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.18, delay: 0.05 }}
+              className="absolute right-4 sm:right-10 top-1/2 seal-red w-12 h-12 text-base flex items-center justify-center font-kai z-10"
+              style={{
+                letterSpacing: 0,
+                transform: 'translateY(-50%) rotate(8deg)',
+              }}
             >
               檄
-            </div>
+            </motion.div>
 
             {/* 中央内容 */}
             <div className="relative mx-auto max-w-[720px] px-20 sm:px-24 text-center">
-              {/* 页眉：阵法推演 */}
-              <motion.div
-                initial={{ opacity: 0, y: -6 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="text-[11px] tracking-[0.9em] font-kai font-black mb-2"
-                style={{
-                  color: '#f7d57a',
-                  textShadow: '0 0 10px rgba(212,175,55,0.75), 0 1px 2px rgba(0,0,0,0.95)',
-                }}
-              >
-                阵 法 推 演
-              </motion.div>
-
               {/* 阵法大名 */}
               <motion.div
-                initial={{ letterSpacing: '1.3em', opacity: 0, filter: 'blur(6px)' }}
-                animate={{ letterSpacing: '0.45em', opacity: 1, filter: 'blur(0px)' }}
-                transition={{ duration: 0.65, delay: 0.25 }}
-                className="text-4xl sm:text-5xl font-black font-kai leading-none"
+                initial={{ opacity: 0, letterSpacing: '0.8em' }}
+                animate={{ opacity: 1, letterSpacing: '0.45em' }}
+                transition={{ duration: 0.22, delay: 0.05 }}
+                className="text-3xl sm:text-4xl font-black font-kai leading-none"
                 style={{
                   background:
                     'linear-gradient(180deg, #fff5cc 0%, #f7d57a 30%, #d4af37 55%, #6b4a10 100%)',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
                   filter:
-                    'drop-shadow(0 0 12px rgba(212,175,55,0.55)) drop-shadow(0 2px 4px rgba(0,0,0,0.9))',
+                    'drop-shadow(0 0 12px rgba(212,175,55,0.6)) drop-shadow(0 2px 4px rgba(0,0,0,0.9))',
                 }}
               >
                 {banner.formation.name}
@@ -126,8 +120,8 @@ export function FormationBroadcast({ teamEvals }: Props) {
               <motion.div
                 initial={{ scaleX: 0 }}
                 animate={{ scaleX: 1 }}
-                transition={{ duration: 0.6, delay: 0.55 }}
-                className="mx-auto my-3 h-[1px] w-48"
+                transition={{ duration: 0.25, delay: 0.1 }}
+                className="mx-auto my-2 h-[1px] w-40"
                 style={{
                   background:
                     'linear-gradient(90deg, transparent, rgba(212,175,55,0.85), rgba(255,245,200,0.95), rgba(212,175,55,0.85), transparent)',
@@ -136,61 +130,73 @@ export function FormationBroadcast({ teamEvals }: Props) {
                 }}
               />
 
-              {/* 播报文案 */}
-              <TypewriterText
-                text={banner.formation.broadcast}
-                delay={0.55}
-                className="text-amber-100"
-              />
+              {/* 播报文案 —— 整段一次性淡入，无打字效果 */}
+              <motion.div
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, delay: 0.12 }}
+                className="text-center text-amber-100 text-sm sm:text-base font-kai tracking-[0.15em] leading-relaxed"
+                style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}
+              >
+                {banner.formation.broadcast}
+              </motion.div>
               {banner.isFlush && (
-                <TypewriterText
-                  text={FLUSH_BROADCAST}
-                  delay={1.1}
-                  className="text-red-200 mt-1"
-                />
+                <motion.div
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.2, delay: 0.2 }}
+                  className="text-center text-red-200 text-sm sm:text-base font-kai tracking-[0.15em] leading-relaxed mt-1"
+                  style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}
+                >
+                  {FLUSH_BROADCAST}
+                </motion.div>
               )}
 
               {/* 军势数字 */}
               <motion.div
-                initial={{ scale: 0.4, opacity: 0 }}
+                initial={{ scale: 0.5, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 1.45, type: 'spring', stiffness: 200 }}
-                className="mt-4 flex items-center justify-center gap-3"
+                transition={{
+                  duration: 0.28,
+                  delay: 0.18,
+                  ease: [0.2, 1.3, 0.3, 1],
+                }}
+                className="mt-3 flex items-center justify-center gap-3"
               >
                 <span className="text-[11px] text-amber-200/80 tracking-[0.5em] font-kai font-black">
                   軍 勢
                 </span>
                 <span
-                  className="text-5xl sm:text-6xl font-black tabular-nums font-kai"
+                  className="text-4xl sm:text-5xl font-black tabular-nums font-kai"
                   style={{
                     background:
                       'linear-gradient(180deg, #fff5cc 0%, #f7d57a 30%, #d4af37 55%, #6b4a10 100%)',
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                     filter:
-                      'drop-shadow(0 0 16px rgba(212,175,55,0.75)) drop-shadow(0 2px 4px rgba(0,0,0,0.9))',
+                      'drop-shadow(0 0 16px rgba(212,175,55,0.8)) drop-shadow(0 2px 4px rgba(0,0,0,0.9))',
                   }}
                 >
                   {banner.power}
                 </span>
               </motion.div>
             </div>
-          </motion.div>
+          </div>
         </motion.div>
       )}
     </AnimatePresence>
   );
 }
 
-/** 金色粒子层（装饰） */
+/** 金色粒子层 */
 function EmberLayer() {
   const dots = useMemo(
     () =>
-      Array.from({ length: 18 }).map((_, i) => ({
+      Array.from({ length: 12 }).map((_, i) => ({
         id: i,
         left: 4 + Math.random() * 92,
-        delay: Math.random() * 3,
-        duration: 3.5 + Math.random() * 2,
+        delay: Math.random() * 0.6,
+        duration: 1.2 + Math.random() * 0.6,
         size: 2 + Math.random() * 3,
       })),
     [],
@@ -211,52 +217,6 @@ function EmberLayer() {
           }}
         />
       ))}
-    </div>
-  );
-}
-
-function TypewriterText({
-  text,
-  delay = 0.3,
-  className = '',
-}: {
-  text: string;
-  delay?: number;
-  className?: string;
-}) {
-  const [shown, setShown] = useState('');
-
-  useEffect(() => {
-    setShown('');
-    const startDelay = delay * 1000;
-    const charDelay = 42;
-    let timer: ReturnType<typeof setTimeout>;
-
-    const showChar = (i: number) => {
-      if (i > text.length) return;
-      setShown(text.slice(0, i));
-      timer = setTimeout(() => showChar(i + 1), charDelay);
-    };
-
-    const start = setTimeout(() => showChar(1), startDelay);
-    return () => {
-      clearTimeout(start);
-      clearTimeout(timer);
-    };
-  }, [text, delay]);
-
-  return (
-    <div
-      className={[
-        'text-center text-sm sm:text-base font-kai tracking-[0.15em] leading-relaxed',
-        className,
-      ].join(' ')}
-      style={{ textShadow: '0 1px 2px rgba(0,0,0,0.9)' }}
-    >
-      {shown}
-      {shown.length < text.length && (
-        <span className="inline-block w-[2px] h-[1em] align-middle ml-1 bg-amber-200 animate-pulse" />
-      )}
     </div>
   );
 }
