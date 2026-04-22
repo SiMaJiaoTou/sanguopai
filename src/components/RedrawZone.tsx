@@ -27,7 +27,7 @@ export function RedrawZone({ freeRedrawsLeft, gold, paidCost, compact }: Props) 
         ref={setNodeRef}
         layout
         className={[
-          'sticky top-[76px] z-30 w-full rounded-lg px-4 py-3 border-2 transition-all',
+          'relative w-full rounded-lg px-4 py-3 border-2 transition-all',
           'wood-panel rivets',
           'flex items-center gap-3',
           disabled

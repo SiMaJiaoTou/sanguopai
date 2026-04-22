@@ -127,12 +127,22 @@ export const useGameStore = create<GameState>((set, get) => ({
     const level = 1;
     let working = shuffled;
     const drawn: Card[] = [];
-    for (let i = 0; i < cfg.initialDrawCount; i++) {
+
+    // 强制起手：一张刘备（蜀 · 15 点）
+    const liubeiIdx = working.findIndex(
+      (c) => c.faction === '蜀' && c.name === '刘备',
+    );
+    if (liubeiIdx >= 0) {
+      drawn.push(working[liubeiIdx]);
+      working = working.slice(0, liubeiIdx).concat(working.slice(liubeiIdx + 1));
+    }
+
+    // 剩余手牌从 Lv.1 解锁池中抽取，直到达到 initialDrawCount
+    while (drawn.length < cfg.initialDrawCount) {
       const r = drawOneUnlocked(working, level);
-      if (r.card) {
-        drawn.push(r.card);
-        working = r.rest;
-      }
+      if (!r.card) break;
+      drawn.push(r.card);
+      working = r.rest;
     }
     set({
       deck: working,

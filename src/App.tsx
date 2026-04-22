@@ -318,13 +318,15 @@ export default function App() {
 
             <HandArea cards={state.hand} />
 
-            {/* 换将令（统一放在待命武将下方） */}
-            <RedrawZone
-              freeRedrawsLeft={state.freeRedrawsLeft}
-              gold={state.gold}
-              paidCost={ECONOMY_CONFIG.paidRedrawCost}
-              compact
-            />
+            {/* 换将令（统一放在待命武将下方，额外 mt 拉开与上方的距离） */}
+            <div className="mt-2 sm:mt-4">
+              <RedrawZone
+                freeRedrawsLeft={state.freeRedrawsLeft}
+                gold={state.gold}
+                paidCost={ECONOMY_CONFIG.paidRedrawCost}
+                compact
+              />
+            </div>
 
             <div className="text-[11px] text-amber-200/50 leading-relaxed border-t border-amber-900/30 pt-3 italic">
               ◈ 本年目标：填满 <span className="text-gold font-bold">{teamsRequired}</span> 队 ·
