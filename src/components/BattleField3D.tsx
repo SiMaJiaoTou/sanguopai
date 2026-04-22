@@ -398,6 +398,7 @@ function CommanderMark({ faction, name }: { faction: Faction; name: string }) {
         center
         distanceFactor={6}
         zIndexRange={[20, 10]}
+        wrapperClass="pointer-events-none"
         style={{ pointerEvents: 'none', userSelect: 'none' }}
       >
         <div
