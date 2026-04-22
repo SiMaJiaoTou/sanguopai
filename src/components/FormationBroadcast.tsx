@@ -8,8 +8,8 @@ interface Props {
   teamEvals: (EvaluateResult | null)[];
 }
 
-/** 总展示时长（ms）：0.25s 弹入 + 0.6s 停留 + 0.55s 上飘淡出 ≈ 1.4s */
-const BANNER_DURATION = 1400;
+/** 总展示时长（ms）：入场动画全部完成后立刻开始上飘退出 */
+const BANNER_DURATION = 520;
 
 export function FormationBroadcast({ teamEvals }: Props) {
   const [banner, setBanner] = useState<{
