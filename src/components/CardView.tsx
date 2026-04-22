@@ -43,16 +43,6 @@ const FACTION_PORTRAIT: Record<
     plume: '#a7c3ff',
   },
   蜀: {
-    ring: '#ef4444',
-    ringDark: '#991b1b',
-    inner: 'radial-gradient(ellipse at 30% 25%, #d22a2a 0%, #b91c1c 45%, #5a0f0f 100%)',
-    glow: 'rgba(239,68,68,0.7)',
-    face: '#e3d4b8',
-    accentText: '#fff2f2',
-    accentDark: '#5a0f0f',
-    plume: '#ffdcb0',
-  },
-  吴: {
     ring: '#10b981',
     ringDark: '#065f46',
     inner: 'radial-gradient(ellipse at 30% 25%, #0d8f6e 0%, #047857 45%, #022c22 100%)',
@@ -61,6 +51,16 @@ const FACTION_PORTRAIT: Record<
     accentText: '#e5fff4',
     accentDark: '#022c22',
     plume: '#b4efd2',
+  },
+  吴: {
+    ring: '#ef4444',
+    ringDark: '#991b1b',
+    inner: 'radial-gradient(ellipse at 30% 25%, #d22a2a 0%, #b91c1c 45%, #5a0f0f 100%)',
+    glow: 'rgba(239,68,68,0.7)',
+    face: '#e3d4b8',
+    accentText: '#fff2f2',
+    accentDark: '#5a0f0f',
+    plume: '#ffdcb0',
   },
   群: {
     ring: '#d97706',

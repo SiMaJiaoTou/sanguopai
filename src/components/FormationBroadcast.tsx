@@ -1,34 +1,56 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { EvaluateResult } from '../types';
 import { FORMATIONS, FLUSH_BROADCAST } from '../formations';
 
 interface Props {
-  evalResult: EvaluateResult | null;
-  teamIndex: number;
+  /** 所有军团的评估结果（索引即 teamIndex） */
+  teamEvals: (EvaluateResult | null)[];
 }
 
-export function FormationBroadcast({ evalResult, teamIndex }: Props) {
+export function FormationBroadcast({ teamEvals }: Props) {
   const [banner, setBanner] = useState<{
     id: number;
+    teamIndex: number;
     formation: (typeof FORMATIONS)[keyof typeof FORMATIONS];
     isFlush: boolean;
     power: number;
   } | null>(null);
 
+  // 每队上一次已经播过的阵法签名（`${rankKey}|${isFlush}`）
+  const lastSigs = useRef<(string | null)[]>([]);
+
   useEffect(() => {
-    if (!evalResult) return;
-    const formation = FORMATIONS[evalResult.rankType.key];
-    setBanner({
-      id: Date.now() + Math.random(),
-      formation,
-      isFlush: evalResult.isFlush,
-      power: evalResult.power,
-    });
+    // 逐队检测：仅当某队签名从旧值变为新的非空值时才触发播报
+    for (let i = 0; i < teamEvals.length; i++) {
+      const ev = teamEvals[i];
+      const sig = ev ? `${ev.rankType.key}|${ev.isFlush}` : null;
+      const prev = lastSigs.current[i] ?? null;
+
+      if (sig !== prev) {
+        lastSigs.current[i] = sig;
+        // 仅当新签名非 null（从无阵到成阵 / 阵法变化）才播报；
+        // 从成阵回到未成阵（拖走武将）不触发
+        if (sig && ev) {
+          const formation = FORMATIONS[ev.rankType.key];
+          setBanner({
+            id: Date.now() + Math.random(),
+            teamIndex: i,
+            formation,
+            isFlush: ev.isFlush,
+            power: ev.power,
+          });
+        }
+      }
+    }
+  }, [teamEvals]);
+
+  // 横幅 3.2 秒后自动消失
+  useEffect(() => {
+    if (!banner) return;
     const t = setTimeout(() => setBanner(null), 3200);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [evalResult?.rankType.key, evalResult?.isFlush, teamIndex]);
+  }, [banner?.id]);
 
   return (
     <AnimatePresence>
@@ -57,7 +79,7 @@ export function FormationBroadcast({ evalResult, teamIndex }: Props) {
               className="absolute left-4 sm:left-10 top-1/2 -translate-y-1/2 seal-red w-14 h-14 text-base flex items-center justify-center font-kai z-10"
               style={{ letterSpacing: 0, transform: 'translateY(-50%) rotate(-8deg)' }}
             >
-              {teamIndex === 0 ? '前' : '后'}
+              {banner.teamIndex === 0 ? '前' : '后'}
             </div>
             <div
               className="absolute right-4 sm:right-10 top-1/2 -translate-y-1/2 seal-red w-14 h-14 text-base flex items-center justify-center font-kai z-10"

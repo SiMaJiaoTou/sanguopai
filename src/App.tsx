@@ -227,11 +227,8 @@ export default function App() {
 
       <HandEffect trigger={effect} onDone={() => setEffect(null)} />
 
-      {/* 阵法播报横幅：显示当前激活军团的阵法 */}
-      <FormationBroadcast
-        evalResult={activeTeamIndex === 0 ? team0Eval : team1Eval}
-        teamIndex={activeTeamIndex}
-      />
+      {/* 阵法播报横幅：观察所有军团，某队阵法从无到有 / 阵法变化时触发 */}
+      <FormationBroadcast teamEvals={[team0Eval, team1Eval]} />
 
       <DndContext
         sensors={sensors}

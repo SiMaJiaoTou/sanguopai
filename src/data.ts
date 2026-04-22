@@ -240,16 +240,16 @@ export const FACTION_THEME: Record<
   },
   蜀: {
     bg: 'card-shu',
-    ring: 'ring-red-500/80',
-    accent: 'text-red-100',
-    glyph: '♥',
+    ring: 'ring-emerald-500/80',
+    accent: 'text-emerald-100',
+    glyph: '♣',
     text: 'text-yellow-50',
   },
   吴: {
     bg: 'card-wu',
-    ring: 'ring-emerald-500/80',
-    accent: 'text-emerald-100',
-    glyph: '♣',
+    ring: 'ring-red-500/80',
+    accent: 'text-red-100',
+    glyph: '♥',
     text: 'text-yellow-50',
   },
   群: {
