@@ -40,103 +40,124 @@ export function RecruitPanel({
 
   const isMax = recruitLevel >= 6;
   const expNeed = isMax ? 0 : LEVEL_EXP_REQUIRED[recruitLevel];
-  // 每次点击 -1 金币 +1 威望，满则升级
   const upgradeCost = isMax ? 0 : 1;
   const canUpgrade = !disabled && !isMax && gold >= upgradeCost;
 
   const expPercent = isMax ? 100 : Math.min(100, (recruitExp / expNeed) * 100);
 
   return (
-    <div className="relative rounded-lg wood-panel bronze-border rivets wood-dark space-y-3">
+    <div className="relative rounded-lg wood-panel bronze-border rivets wood-dark space-y-4">
       <div className="rivet-b" />
 
-      <div className="flex items-center justify-between relative ink-underline">
-        <div className="flex items-center gap-2">
-          <span className="text-red-500 text-base">㊉</span>
-          <div className="text-gold-grad font-black tracking-[0.25em] font-kai">主 公 府</div>
-        </div>
-        <div className="seal-red w-8 h-8 text-[10px] font-black">
-          Lv{recruitLevel}
-        </div>
-      </div>
-
-      {/* 经验条 */}
-      <div>
-        <div className="flex items-baseline justify-between mb-1">
-          <span className="text-[11px] text-amber-100/70 tracking-widest font-kai">威 望</span>
-          <span className="text-[11px] text-gold-grad tabular-nums font-black">
-            {isMax ? '━━ 满级 ━━' : `${recruitExp} / ${expNeed}`}
+      {/* 卷首 */}
+      <div className="flex items-center justify-between relative">
+        <div className="flex items-center gap-3">
+          <span className="scroll-tag text-[11px]">主公府</span>
+          <span className="text-[10px] text-amber-200/55 italic tracking-widest hidden sm:inline">
+            招贤纳士
           </span>
         </div>
         <div
-          className="h-3 w-full rounded-full overflow-hidden border-2 border-amber-900"
+          className="jade-seal text-[11px]"
+          title={`主公府等级 Lv.${recruitLevel}${isMax ? ' · 已达满级' : ''}`}
+        >
+          Lv{recruitLevel}
+        </div>
+      </div>
+      <div className="ornament-meander" />
+
+      {/* 威望条 */}
+      <div>
+        <div className="flex items-baseline justify-between mb-1.5">
+          <span className="text-[11px] text-amber-100/75 tracking-[0.3em] font-kai font-black">
+            威 望
+          </span>
+          <span className="text-[11px] text-gold-grad tabular-nums font-black">
+            {isMax ? '── 满 级 ──' : `${recruitExp} / ${expNeed}`}
+          </span>
+        </div>
+        <div
+          className="relative h-3.5 w-full rounded-full overflow-hidden"
           style={{
-            background: '#1a0f08',
-            boxShadow: 'inset 0 2px 3px rgba(0,0,0,0.9)',
+            background: 'linear-gradient(180deg, #0a0604 0%, #1f120a 100%)',
+            border: '1.5px solid #3a2414',
+            boxShadow:
+              'inset 0 2px 4px rgba(0,0,0,0.95), inset 0 -1px 0 rgba(80,50,10,0.45), 0 1px 0 rgba(255,200,120,0.15)',
           }}
         >
-          <motion.div
-            className="h-full"
-            initial={{ width: 0 }}
-            animate={{ width: `${expPercent}%` }}
-            transition={{ duration: 0.5 }}
+          {/* 刻度分段 */}
+          <div
+            className="absolute inset-0 pointer-events-none"
             style={{
-              background: 'linear-gradient(180deg, #fde68a 0%, #d4af37 40%, #8b6914 100%)',
-              boxShadow: '0 0 6px rgba(251,191,36,0.7), inset 0 1px 0 rgba(255,245,200,0.5)',
+              backgroundImage:
+                'repeating-linear-gradient(90deg, transparent 0 calc(20% - 1px), rgba(139,90,40,0.45) calc(20% - 1px) 20%)',
             }}
           />
+          <motion.div
+            className="h-full relative"
+            initial={{ width: 0 }}
+            animate={{ width: `${expPercent}%` }}
+            transition={{ duration: 0.55, ease: 'easeOut' }}
+            style={{
+              background:
+                'linear-gradient(180deg, #fff2cc 0%, #f7d57a 25%, #d4af37 55%, #8b5a28 100%)',
+              boxShadow:
+                '0 0 10px rgba(212,175,55,0.75), inset 0 1px 0 rgba(255,245,200,0.7), inset 0 -1px 2px rgba(100,60,10,0.5)',
+            }}
+          >
+            {/* 流动光 */}
+            <div className="sweep-sheen" />
+          </motion.div>
         </div>
-        <div className="text-[10px] text-amber-100/60 mt-1.5">
-          已解锁：
-          <span className="text-gold-grad font-kai font-black tracking-wider ml-1">
+        <div className="text-[10px] text-amber-100/65 mt-2 tracking-wider">
+          已解锁 ·
+          <span className="text-gold-grad font-kai font-black tracking-[0.22em] ml-1">
             {unlockedLabelShort(recruitLevel)}
           </span>
         </div>
       </div>
 
-      {/* 操作按钮 */}
+      {/* 两枚令牌（招募 · 擢升） */}
       <div className="grid grid-cols-2 gap-3">
-        <button
+        <motion.button
+          whileHover={canBuy ? { y: -2 } : undefined}
+          whileTap={canBuy ? { y: 4 } : undefined}
           onClick={onBuy}
           disabled={!canBuy}
-          className="btn-wood btn-gold py-3 px-2"
-          title={`招募：随机抽 1 张已解锁武将 · 消耗 ${buyPrice} 金币`}
+          className="btn-seal btn-seal-gold relative overflow-hidden"
+          title={`招募 · 随机抽 1 张已解锁武将 · 消耗 ${buyPrice} 金币`}
         >
-          <div className="flex flex-col items-center gap-0.5">
-            <div className="text-sm font-black flex items-center gap-1 tracking-[0.3em]">
-              <span>⚔</span>
-              <span>招募</span>
-            </div>
-            <div className="text-[11px] tabular-nums font-black">
-              🪙 {buyPrice}
-            </div>
+          <div className="text-[13px] tracking-[0.35em] leading-none">招 募</div>
+          <div className="text-[10px] tabular-nums opacity-80 tracking-wider">
+            🪙 {buyPrice} 金
           </div>
-        </button>
+          {canBuy && <div className="sweep-sheen" />}
+        </motion.button>
 
-        <button
+        <motion.button
+          whileHover={canUpgrade ? { y: -2 } : undefined}
+          whileTap={canUpgrade ? { y: 4 } : undefined}
           onClick={onUpgrade}
           disabled={!canUpgrade}
-          className="btn-wood btn-red py-3 px-2"
+          className="btn-seal relative overflow-hidden"
           title={
             isMax
               ? '已达满级'
               : `消耗 1 金币获得 1 威望（满 ${expNeed} 自动升级至 Lv.${recruitLevel + 1}）`
           }
         >
-          <div className="flex flex-col items-center gap-0.5">
-            <div className="text-sm font-black flex items-center gap-1 tracking-[0.3em]">
-              <span>⬆</span>
-              <span>{isMax ? '满级' : '擢升'}</span>
-            </div>
-            <div className="text-[11px] tabular-nums font-black">
-              {isMax ? 'MAX' : `🪙 1 → +1 威望`}
-            </div>
+          <div className="text-[13px] tracking-[0.35em] leading-none">
+            {isMax ? '满 级' : '擢 升'}
           </div>
-        </button>
+          <div className="text-[10px] tabular-nums opacity-85 tracking-wider">
+            {isMax ? 'MAX' : '🪙 1 → +1 望'}
+          </div>
+        </motion.button>
       </div>
 
-      <div className="text-[10px] text-amber-100/50 leading-relaxed border-t border-amber-900 pt-2 italic">
-        ◈ 招募第 N 次需 N 金币 · 每次擢升：1 金币 → 1 威望 · 每年自动获威望
+      <div className="ornament-meander" />
+      <div className="text-[10px] text-amber-100/55 leading-relaxed italic text-center font-kai">
+        招募第 N 次需 N 金 · 擢升 1 金 ＝ 1 威望 · 每岁自获威望
       </div>
     </div>
   );

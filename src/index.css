@@ -469,3 +469,455 @@ button,
   background: #8b6914;
   color: #fff5e0;
 }
+
+/* ============================================================
+   精装饰类（兵书卷宗 · 青铜铭文 · 玉押朱批）
+   仅扩展，不覆盖已有样式
+   ============================================================ */
+
+/* 回纹 · 古籍页眉装饰（细金线交织几何纹） */
+.ornament-meander {
+  position: relative;
+  height: 10px;
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      transparent 0 4px,
+      rgba(212, 175, 55, 0.55) 4px 5px,
+      transparent 5px 9px,
+      rgba(212, 175, 55, 0.25) 9px 10px,
+      transparent 10px 16px
+    );
+  opacity: 0.85;
+}
+.ornament-meander::before,
+.ornament-meander::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  transform: translateY(-50%) rotate(45deg);
+  background: linear-gradient(135deg, #f7d57a, #8b5a28);
+  border: 1px solid rgba(0, 0, 0, 0.6);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+.ornament-meander::before { left: 0; }
+.ornament-meander::after { right: 0; }
+
+/* 竹简侧脊 · 给兵法谱每一条阵法做"册页"左竖线 */
+.bamboo-strip {
+  position: relative;
+  padding-left: 14px;
+}
+.bamboo-strip::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 2px;
+  bottom: 2px;
+  width: 3px;
+  background:
+    linear-gradient(180deg,
+      rgba(212, 175, 55, 0.6) 0%,
+      rgba(139, 90, 40, 0.9) 25%,
+      rgba(60, 30, 10, 0.95) 50%,
+      rgba(139, 90, 40, 0.9) 75%,
+      rgba(212, 175, 55, 0.6) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 220, 160, 0.35),
+    0 0 2px rgba(0, 0, 0, 0.8);
+  border-radius: 1.5px;
+}
+.bamboo-strip.active::before {
+  background:
+    linear-gradient(180deg,
+      #fff2cc 0%,
+      #f7d57a 30%,
+      #d4af37 55%,
+      #8b5a28 100%);
+  box-shadow:
+    0 0 6px rgba(212, 175, 55, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* 玉璧徽章 · 环形双层，中心嵌数字（用作倍率/战力徽章） */
+.jade-disc {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font-family: 'STKaiti', serif;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 32%, rgba(0, 0, 0, 0.6) 32% 36%, transparent 36%),
+    radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.55) 0%, transparent 22%),
+    radial-gradient(circle at 50% 55%, #f2e8c4 0%, #d4b483 45%, #8b6914 100%);
+  border: 1.5px solid rgba(20, 10, 4, 0.85);
+  box-shadow:
+    inset 0 2px 3px rgba(255, 255, 255, 0.4),
+    inset 0 -3px 5px rgba(80, 50, 10, 0.45),
+    0 3px 6px rgba(0, 0, 0, 0.7);
+  color: #3a1a05;
+  text-shadow: 0 1px 0 rgba(255, 240, 200, 0.7);
+  letter-spacing: 0;
+}
+.jade-disc > span { position: relative; z-index: 2; line-height: 1; }
+.jade-disc.jade-red {
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 32%, rgba(0, 0, 0, 0.6) 32% 36%, transparent 36%),
+    radial-gradient(circle at 30% 28%, rgba(255, 200, 200, 0.55) 0%, transparent 22%),
+    radial-gradient(circle at 50% 55%, #f5c6bc 0%, #c82828 50%, #5a0808 100%);
+  color: #fff2d8;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+.jade-disc.jade-gold {
+  background:
+    radial-gradient(circle at 50% 50%, transparent 0 32%, rgba(0, 0, 0, 0.7) 32% 36%, transparent 36%),
+    radial-gradient(circle at 30% 28%, rgba(255, 255, 255, 0.75) 0%, transparent 22%),
+    radial-gradient(circle at 50% 55%, #fff2cc 0%, #d4af37 50%, #6b4a10 100%);
+  color: #2a1608;
+}
+
+/* 青铜饕餮分隔（顶栏 StatCell 之间） */
+.bronze-divider {
+  position: relative;
+  width: 2px;
+  min-height: 40px;
+  background: linear-gradient(
+    180deg,
+    transparent 0%,
+    rgba(139, 90, 40, 0.4) 15%,
+    #8b5a28 30%,
+    #d4af37 50%,
+    #8b5a28 70%,
+    rgba(139, 90, 40, 0.4) 85%,
+    transparent 100%
+  );
+  margin: 0 2px;
+}
+.bronze-divider::before,
+.bronze-divider::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  transform: translateX(-50%) rotate(45deg);
+  background: radial-gradient(circle at 30% 30%, #f7d57a, #a8753a 50%, #2a1608);
+  border: 1px solid rgba(0, 0, 0, 0.8);
+  box-shadow: inset 0 -1px 1px rgba(0, 0, 0, 0.7), 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+.bronze-divider::before { top: 20%; }
+.bronze-divider::after { bottom: 20%; }
+
+/* 封泥印文 · 小圆印（标题左侧点缀） */
+.seal-dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 200, 180, 0.6), transparent 35%),
+    linear-gradient(135deg, #c82828 0%, #7a1515 55%, #3a0404 100%);
+  border: 1px solid #2a0404;
+  box-shadow:
+    inset 0 1px 2px rgba(255, 180, 160, 0.45),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.8),
+    0 1px 2px rgba(0, 0, 0, 0.7);
+  vertical-align: middle;
+}
+
+/* 卷首题签 · 兵法谱顶部竖条朱砂签 */
+.scroll-tag {
+  position: relative;
+  display: inline-block;
+  padding: 4px 10px;
+  background:
+    repeating-linear-gradient(
+      135deg,
+      rgba(255, 210, 180, 0.08) 0 1px,
+      transparent 1px 3px
+    ),
+    linear-gradient(180deg, #a02020 0%, #7a1818 55%, #4a0808 100%);
+  color: #ffe8c8;
+  font-family: 'STKaiti', serif;
+  font-weight: 900;
+  letter-spacing: 0.35em;
+  border: 1px solid #2a0404;
+  border-radius: 2px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 200, 180, 0.4),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.55),
+    0 2px 4px rgba(0, 0, 0, 0.7);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.85);
+}
+.scroll-tag::before,
+.scroll-tag::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 70%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 220, 180, 0.5), transparent);
+}
+.scroll-tag::before { top: 3px; }
+.scroll-tag::after { bottom: 3px; }
+
+/* 卷轴轴承（用在结算卷首/卷尾） */
+.scroll-axis {
+  position: relative;
+  height: 22px;
+  background: linear-gradient(
+    180deg,
+    #6b4018 0%,
+    #a8753a 20%,
+    #f7d57a 40%,
+    #a8753a 60%,
+    #5a2e10 90%,
+    #2a1408 100%
+  );
+  border-top: 1px solid rgba(0, 0, 0, 0.85);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.85);
+  box-shadow:
+    inset 0 2px 3px rgba(255, 220, 160, 0.4),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.7),
+    0 3px 8px rgba(0, 0, 0, 0.6);
+}
+.scroll-axis::before,
+.scroll-axis::after {
+  content: '';
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  width: 16px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 40% 35%,
+    #f7d57a 0%,
+    #a8753a 35%,
+    #4a2810 75%,
+    #1a0a04 100%
+  );
+  border: 1.5px solid rgba(20, 10, 4, 0.9);
+  box-shadow:
+    inset 0 2px 3px rgba(255, 220, 160, 0.55),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.7),
+    0 3px 6px rgba(0, 0, 0, 0.8);
+}
+.scroll-axis::before { left: -10px; }
+.scroll-axis::after { right: -10px; }
+
+/* 擢升令牌按钮（方印） */
+.btn-seal {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 14px;
+  font-family: 'STKaiti', serif;
+  font-weight: 900;
+  letter-spacing: 0.25em;
+  color: #ffeeca;
+  background:
+    repeating-linear-gradient(45deg, rgba(255, 220, 180, 0.06) 0 1px, transparent 1px 4px),
+    linear-gradient(180deg, #a82828 0%, #7a1a1a 40%, #4a0a0a 100%);
+  border: 1px solid #2a0404;
+  border-radius: 3px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 210, 190, 0.6),
+    inset 0 2px 3px rgba(255, 160, 140, 0.25),
+    inset 0 -3px 5px rgba(0, 0, 0, 0.55),
+    0 4px 0 #2a0404,
+    0 6px 10px rgba(0, 0, 0, 0.75);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.9);
+  transition: transform 0.08s, box-shadow 0.08s, filter 0.12s;
+  cursor: pointer;
+}
+.btn-seal::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px dashed rgba(255, 220, 180, 0.35);
+  border-radius: 2px;
+  pointer-events: none;
+}
+.btn-seal:hover:not(:disabled) { filter: brightness(1.08) saturate(1.1); }
+.btn-seal:active:not(:disabled) {
+  transform: translateY(4px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 210, 190, 0.4),
+    inset 0 -1px 2px rgba(0, 0, 0, 0.6),
+    0 0 0 #2a0404,
+    0 2px 4px rgba(0, 0, 0, 0.5);
+}
+.btn-seal:disabled {
+  filter: saturate(0.2) brightness(0.5);
+  cursor: not-allowed;
+  transform: translateY(2px);
+}
+.btn-seal.btn-seal-gold {
+  background:
+    repeating-linear-gradient(45deg, rgba(0, 0, 0, 0.08) 0 1px, transparent 1px 4px),
+    linear-gradient(180deg, #f7d57a 0%, #d4af37 45%, #6b4a10 100%);
+  color: #2a1608;
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.55);
+  border-color: #2a1808;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 2px 3px rgba(255, 230, 180, 0.4),
+    inset 0 -3px 5px rgba(80, 50, 10, 0.6),
+    0 4px 0 #2a1808,
+    0 6px 10px rgba(0, 0, 0, 0.8);
+}
+.btn-seal.btn-seal-gold::after {
+  border-color: rgba(60, 30, 5, 0.45);
+}
+
+/* 金光流转（擢升按钮可用时的光线扫过） */
+@keyframes goldSweep {
+  0% { background-position: -150% 0; }
+  100% { background-position: 250% 0; }
+}
+.sweep-sheen {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 30%,
+    rgba(255, 245, 200, 0.35) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  animation: goldSweep 3.5s linear infinite;
+  mix-blend-mode: screen;
+  border-radius: inherit;
+}
+
+/* 檄文横幅（FormationBroadcast）—— 上下黑色金边带 + 中央朱砂底 */
+.proclaim-band {
+  position: relative;
+  background:
+    repeating-linear-gradient(90deg, rgba(255, 220, 160, 0.06) 0 1px, transparent 1px 4px),
+    linear-gradient(180deg,
+      rgba(10, 4, 2, 0.98) 0%,
+      rgba(60, 10, 8, 0.96) 30%,
+      rgba(80, 12, 8, 0.96) 50%,
+      rgba(60, 10, 8, 0.96) 70%,
+      rgba(10, 4, 2, 0.98) 100%);
+  border-top: 2px solid #d4af37;
+  border-bottom: 2px solid #d4af37;
+  box-shadow:
+    inset 0 2px 0 rgba(255, 230, 180, 0.3),
+    inset 0 -2px 0 rgba(255, 230, 180, 0.3),
+    inset 0 0 40px rgba(0, 0, 0, 0.8),
+    0 10px 30px rgba(0, 0, 0, 0.9);
+}
+.proclaim-band::before,
+.proclaim-band::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(212, 175, 55, 0.8) 20%,
+    rgba(255, 245, 200, 0.95) 50%,
+    rgba(212, 175, 55, 0.8) 80%,
+    transparent 100%
+  );
+}
+.proclaim-band::before { top: 6px; }
+.proclaim-band::after { bottom: 6px; }
+
+/* 纤金粒子（横幅背景） */
+@keyframes embers {
+  0% { transform: translateY(0) scale(1); opacity: 0; }
+  15% { opacity: 0.85; }
+  100% { transform: translateY(-120px) scale(0.6); opacity: 0; }
+}
+.ember-dot {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff5cc 0%, #d4af37 55%, transparent 100%);
+  filter: blur(0.5px);
+  box-shadow: 0 0 6px rgba(212, 175, 55, 0.9);
+  animation: embers 4.5s linear infinite;
+}
+
+/* 金光旋转流转（用于重要数字/结算） */
+@keyframes shine {
+  0% { background-position: -150% 0; }
+  100% { background-position: 250% 0; }
+}
+.animate-shine {
+  background-image: linear-gradient(
+    100deg,
+    #fff5cc 0%,
+    #f7d57a 30%,
+    #fff5e0 50%,
+    #d4af37 70%,
+    #8b6914 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: shine 4s ease-in-out infinite;
+}
+
+/* 玉扣（RecruitPanel 等级圆形徽章） */
+.jade-seal {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'STKaiti', serif;
+  font-weight: 900;
+  color: #fff5e0;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 200, 200, 0.55) 0%, transparent 40%),
+    radial-gradient(circle at 50% 55%, #c82828 0%, #7a1818 60%, #3a0404 100%);
+  border: 2px solid #2a0404;
+  box-shadow:
+    inset 0 2px 3px rgba(255, 180, 160, 0.55),
+    inset 0 -2px 4px rgba(0, 0, 0, 0.65),
+    0 3px 6px rgba(0, 0, 0, 0.75);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+  transform: rotate(-4deg);
+}
+.jade-seal::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  border: 1px dashed rgba(255, 210, 180, 0.4);
+  pointer-events: none;
+}
+
+/* 页眉卷云装饰（顶栏和面板可复用） */
+.ornament-clouds {
+  position: relative;
+  height: 6px;
+  background-image:
+    radial-gradient(ellipse 10px 3px at 10% 50%, rgba(212, 175, 55, 0.6), transparent 70%),
+    radial-gradient(ellipse 14px 3px at 35% 50%, rgba(212, 175, 55, 0.4), transparent 70%),
+    radial-gradient(ellipse 10px 3px at 60% 50%, rgba(212, 175, 55, 0.6), transparent 70%),
+    radial-gradient(ellipse 14px 3px at 85% 50%, rgba(212, 175, 55, 0.4), transparent 70%);
+}

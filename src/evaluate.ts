@@ -8,10 +8,10 @@ export const RANK_TYPES: Record<
   RankTypeKey,
   { key: RankTypeKey; name: string; score: number; priority: number }
 > = {
-  FIVE_OF_A_KIND:  { key: 'FIVE_OF_A_KIND',  name: '一字阵',   score: 10, priority: 1 },
-  FOUR_OF_A_KIND:  { key: 'FOUR_OF_A_KIND',  name: '雁行阵',   score: 8,  priority: 2 },
+  FIVE_OF_A_KIND:  { key: 'FIVE_OF_A_KIND',  name: '一字阵',   score: 12, priority: 1 },
+  FOUR_OF_A_KIND:  { key: 'FOUR_OF_A_KIND',  name: '雁行阵',   score: 9,  priority: 2 },
   FULL_HOUSE:      { key: 'FULL_HOUSE',      name: '锥形阵',   score: 6,  priority: 3 },
-  STRAIGHT:        { key: 'STRAIGHT',        name: '长蛇阵',   score: 5,  priority: 4 },
+  STRAIGHT:        { key: 'STRAIGHT',        name: '长蛇阵',   score: 7,  priority: 4 },
   THREE_OF_A_KIND: { key: 'THREE_OF_A_KIND', name: '鹤翼阵',   score: 4,  priority: 5 },
   TWO_PAIR:        { key: 'TWO_PAIR',        name: '方圆阵',   score: 3,  priority: 6 },
   ONE_PAIR:        { key: 'ONE_PAIR',        name: '锋矢阵',   score: 2,  priority: 7 },
