@@ -390,23 +390,35 @@ function CommanderMark({ faction, name }: { faction: Faction; name: string }) {
           <planeGeometry args={[0.28, 0.18]} />
           <meshBasicMaterial color={m.flag} />
         </mesh>
-
-        {/* 名字条 */}
-        <mesh position={[0, -0.24, 0.002]}>
-          <planeGeometry args={[0.42, 0.1]} />
-          <meshBasicMaterial color={m.flagDark} />
-        </mesh>
-        <Text
-          position={[0, -0.24, 0.006]}
-          fontSize={0.07}
-          color="#fef3c7"
-          anchorX="center"
-          anchorY="middle"
-          fontWeight="bold"
-        >
-          {name.length > 3 ? name.slice(0, 3) : name}
-        </Text>
       </group>
+
+      {/* 武将中文名牌（HTML 层，支持中文）—— 显示在头像立牌正下方 */}
+      <Html
+        position={[0, 0.02, 0.32]}
+        center
+        distanceFactor={6}
+        zIndexRange={[20, 10]}
+        style={{ pointerEvents: 'none', userSelect: 'none' }}
+      >
+        <div
+          className="font-kai font-black whitespace-nowrap"
+          style={{
+            padding: '2px 8px',
+            borderRadius: 4,
+            fontSize: 14,
+            color: '#fef3c7',
+            background: `linear-gradient(180deg, ${m.flagDark} 0%, #1a0f08 100%)`,
+            border: `1.5px solid ${m.trim}`,
+            boxShadow:
+              '0 1px 3px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,220,160,0.3)',
+            textShadow:
+              '0 1px 2px rgba(0,0,0,0.95), 0 0 4px rgba(212,175,55,0.4)',
+            letterSpacing: '0.08em',
+          }}
+        >
+          {name}
+        </div>
+      </Html>
     </group>
   );
 }
@@ -633,7 +645,6 @@ function Scene({
             faction={c.faction}
             seed={i * 1.7}
             highlight={highlight}
-            name={c.name}
           />
         ) : null,
       )}
@@ -674,14 +685,12 @@ function AnimatedFlag({
   faction,
   seed,
   highlight,
-  name,
 }: {
   targetX: number;
   targetZ: number;
   faction: Faction;
   seed: number;
   highlight: boolean;
-  name: string;
 }) {
   const ref = useRef<THREE.Group>(null);
   useFrame(() => {
@@ -689,37 +698,9 @@ function AnimatedFlag({
     ref.current.position.x += (targetX - ref.current.position.x) * 0.12;
     ref.current.position.z += (targetZ - ref.current.position.z) * 0.12;
   });
-  const m = FACTION_MAT[faction];
   return (
     <group ref={ref} position={[targetX, 0, targetZ]} scale={MODEL_SCALE}>
       <WarFlag faction={faction} seed={seed} highlight={highlight} />
-      {/* 武将名牌（HTML 层，支持中文）—— 贴在旗杆顶 */}
-      <Html
-        position={[0, 2.55, 0]}
-        center
-        distanceFactor={6}
-        zIndexRange={[20, 10]}
-        style={{ pointerEvents: 'none', userSelect: 'none' }}
-      >
-        <div
-          className="font-kai font-black whitespace-nowrap"
-          style={{
-            padding: '2px 8px',
-            borderRadius: 4,
-            fontSize: 14,
-            color: '#fef3c7',
-            background: `linear-gradient(180deg, ${m.flagDark} 0%, #1a0f08 100%)`,
-            border: `1.5px solid ${m.trim}`,
-            boxShadow:
-              '0 1px 3px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,220,160,0.3)',
-            textShadow:
-              '0 1px 2px rgba(0,0,0,0.95), 0 0 4px rgba(212,175,55,0.4)',
-            letterSpacing: '0.08em',
-          }}
-        >
-          {name}
-        </div>
-      </Html>
     </group>
   );
 }
