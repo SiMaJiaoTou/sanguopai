@@ -1032,7 +1032,7 @@ export function BattleField3D({
             backgroundColor: '#2a1a10',
           }}
         >
-          {/* 3D 背景图层：contain 不拉伸 + 完整显示 + 变白降低存在感 */}
+          {/* 3D 背景图层：contain 不拉伸 + 完整显示 · 轻度淡化不抢戏 */}
           <img
             src="/scene2.png"
             alt=""
@@ -1041,9 +1041,8 @@ export function BattleField3D({
             style={{
               objectFit: 'contain',
               objectPosition: 'center center',
-              opacity: 0.55,
-              filter: 'brightness(1.35) saturate(0.75)',
-              mixBlendMode: 'screen',
+              opacity: 0.78,
+              filter: 'brightness(1.08) saturate(0.9)',
             }}
           />
           <Canvas
