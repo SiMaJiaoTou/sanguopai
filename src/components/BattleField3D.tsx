@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
-import { PerspectiveCamera, Text, Cylinder, Plane } from '@react-three/drei';
+import { PerspectiveCamera, Text, Cylinder, Plane, Html } from '@react-three/drei';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { AnimatePresence, motion } from 'framer-motion';
 import * as THREE from 'three';
@@ -609,9 +609,8 @@ function Scene({
       <directionalLight position={[4, 8, 4]} intensity={0.6} color="#fff2cc" castShadow />
       <directionalLight position={[-3, 4, -2]} intensity={0.25} color="#e8dcc0" />
 
-      {/* 水墨地图 */}
-      <MapGround />
-
+      {/* 3D 地面改由 HTML 背景图层承担（scene2.png, contain 模式），此处不再渲染 MapGround */}
+      {/* <MapGround /> */}
       {/* 5 个梯形槽位（跟随阵法坐标） */}
       {positions.map((pos, i) => (
         <SlotTile
@@ -634,6 +633,7 @@ function Scene({
             faction={c.faction}
             seed={i * 1.7}
             highlight={highlight}
+            name={c.name}
           />
         ) : null,
       )}
@@ -674,12 +674,14 @@ function AnimatedFlag({
   faction,
   seed,
   highlight,
+  name,
 }: {
   targetX: number;
   targetZ: number;
   faction: Faction;
   seed: number;
   highlight: boolean;
+  name: string;
 }) {
   const ref = useRef<THREE.Group>(null);
   useFrame(() => {
@@ -687,9 +689,37 @@ function AnimatedFlag({
     ref.current.position.x += (targetX - ref.current.position.x) * 0.12;
     ref.current.position.z += (targetZ - ref.current.position.z) * 0.12;
   });
+  const m = FACTION_MAT[faction];
   return (
     <group ref={ref} position={[targetX, 0, targetZ]} scale={MODEL_SCALE}>
       <WarFlag faction={faction} seed={seed} highlight={highlight} />
+      {/* 武将名牌（HTML 层，支持中文）—— 贴在旗杆顶 */}
+      <Html
+        position={[0, 2.55, 0]}
+        center
+        distanceFactor={6}
+        zIndexRange={[20, 10]}
+        style={{ pointerEvents: 'none', userSelect: 'none' }}
+      >
+        <div
+          className="font-kai font-black whitespace-nowrap"
+          style={{
+            padding: '2px 8px',
+            borderRadius: 4,
+            fontSize: 14,
+            color: '#fef3c7',
+            background: `linear-gradient(180deg, ${m.flagDark} 0%, #1a0f08 100%)`,
+            border: `1.5px solid ${m.trim}`,
+            boxShadow:
+              '0 1px 3px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,220,160,0.3)',
+            textShadow:
+              '0 1px 2px rgba(0,0,0,0.95), 0 0 4px rgba(212,175,55,0.4)',
+            letterSpacing: '0.08em',
+          }}
+        >
+          {name}
+        </div>
+      </Html>
     </group>
   );
 }
@@ -1013,15 +1043,36 @@ export function BattleField3D({
 
       {/* Canvas + 交互层 */}
       <div className="relative w-full" style={{ aspectRatio: '16 / 10', minHeight: 280 }}>
-        <div className="absolute inset-0 rounded-md overflow-hidden">
+        <div
+          className="absolute inset-0 rounded-md overflow-hidden"
+          style={{
+            // letterbox 留白区域的同色底（深棕），与站点主色呼应
+            backgroundColor: '#2a1a10',
+          }}
+        >
+          {/* 3D 背景图层：contain 不拉伸 + 完整显示 + 变白降低存在感 */}
+          <img
+            src="/scene2.png"
+            alt=""
+            aria-hidden
+            className="absolute inset-0 w-full h-full pointer-events-none select-none"
+            style={{
+              objectFit: 'contain',
+              objectPosition: 'center center',
+              opacity: 0.55,
+              filter: 'brightness(1.35) saturate(0.75)',
+              mixBlendMode: 'screen',
+            }}
+          />
           <Canvas
             dpr={[1, 2]}
             gl={{
               antialias: true,
+              alpha: true,
               toneMapping: THREE.ACESFilmicToneMapping,
               outputColorSpace: THREE.SRGBColorSpace,
             }}
-            style={{ background: 'transparent' }}
+            style={{ background: 'transparent', position: 'relative', zIndex: 1 }}
           >
             <PerspectiveCamera
               makeDefault
