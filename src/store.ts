@@ -17,6 +17,13 @@ import {
   type DuelResult,
   INITIAL_HP,
 } from './ai';
+import {
+  type TalentInstance,
+  rollTalents,
+  buildEvalContext,
+} from './talents';
+
+export type GameMode = 'normal' | 'empowered';
 
 export interface PowerSnapshot {
   round: number;
@@ -25,6 +32,8 @@ export interface PowerSnapshot {
   totalPower: number;
   gold: number;
   recruitLevel: number;
+  /** 本回合玩家是否触发至少一次同心（用于天赐结算） */
+  anyFlush?: boolean;
 }
 
 export interface GameState {
@@ -56,8 +65,19 @@ export interface GameState {
   /** 每回合对战战报 */
   duelLog: { round: number; result: DuelResult; hpDelta: Record<string, number> }[];
 
+  // 威力加强模式（天赐系统）
+  mode: GameMode;
+  modeChosen: boolean;             // 用户是否已经选过模式（用来决定要不要弹初始弹窗）
+  talents: TalentInstance[];       // 已获取的天赐
+  pendingTalentChoices: TalentInstance[] | null; // 本回合 3 选 1 的候选（null = 无待选）
+  pendingTalentRound: number | null;             // 待选是哪一年触发的
+  /** 一次性天赐：本回合效果生效标记 */
+  doubleThisRoundActive: boolean;
+
   // 动作
   startNewGame: () => void;
+  chooseMode: (mode: GameMode) => void;
+  pickTalent: (talentId: string) => void;
   moveCard: (fromId: string, toSlot: SlotTarget) => void;
   redraw: (cardId: string) => void;   // 智能换牌：有免费次数用免费，否则付 2 金币
   buyCard: () => void;
@@ -139,6 +159,12 @@ export const useGameStore = create<GameState>((set, get) => ({
   playerHp: INITIAL_HP,
   playerEliminatedAtRound: null,
   duelLog: [],
+  mode: 'normal',
+  modeChosen: false,
+  talents: [],
+  pendingTalentChoices: null,
+  pendingTalentRound: null,
+  doubleThisRoundActive: false,
 
   startNewGame: () => {
     const shuffled = shuffle(generateDeck());
@@ -181,6 +207,153 @@ export const useGameStore = create<GameState>((set, get) => ({
       playerHp: INITIAL_HP,
       playerEliminatedAtRound: null,
       duelLog: [],
+      // 保留 mode/modeChosen（用户本轮已选的模式跨重开延续）
+      talents: [],
+      pendingTalentChoices: null,
+      pendingTalentRound: null,
+      doubleThisRoundActive: false,
+    });
+  },
+
+  chooseMode: (mode) => {
+    set({ mode, modeChosen: true, lastMessage: mode === 'empowered' ? '已开启【威力加强模式】' : '沿用标准模式' });
+  },
+
+  pickTalent: (talentId) => {
+    const state = get();
+    const choices = state.pendingTalentChoices;
+    if (!choices) return;
+    const picked = choices.find((t) => t.id === talentId);
+    if (!picked) return;
+
+    // 新天赐入账（除 instant：应用即消耗）
+    let nextTalents = state.talents;
+    if (picked.kind === 'passive' || picked.kind === 'oneshot') {
+      nextTalents = [...state.talents, picked];
+    }
+
+    // 应用天赐效果
+    let deck = state.deck.slice();
+    let hand = state.hand.slice();
+    let teams = state.teams.map((t) => t.slice());
+    let gold = state.gold;
+    let playerHp = state.playerHp;
+    let freeRedrawsLeft = state.freeRedrawsLeft;
+    let doubleThisRoundActive = state.doubleThisRoundActive;
+    let tips: string[] = [`获得天赐：${picked.name}`];
+
+    const drawOne = (
+      level: number,
+      filter?: (c: Card) => boolean,
+    ): Card | null => {
+      const unlocked = levelUnlockedValues(level);
+      const indices: number[] = [];
+      for (let i = 0; i < deck.length; i++) {
+        const c = deck[i];
+        if (!unlocked.has(c.pointValue)) continue;
+        if (filter && !filter(c)) continue;
+        indices.push(i);
+      }
+      if (indices.length === 0) return null;
+      const pickIdx = indices[Math.floor(Math.random() * indices.length)];
+      const c = deck[pickIdx];
+      deck = deck.slice(0, pickIdx).concat(deck.slice(pickIdx + 1));
+      return c;
+    };
+
+    switch (picked.templateId) {
+      case 'gold_8':
+        gold += 8;
+        tips.push('+8 金币');
+        break;
+      case 'no_flush_plus_gold':
+        gold += 15;
+        tips.push('+15 金币，从此同心效果被封印');
+        break;
+      case 'random_two_cards': {
+        for (let i = 0; i < 2; i++) {
+          const c = drawOne(state.recruitLevel);
+          if (c) {
+            hand.push(c);
+            tips.push(`募得 ${c.name}`);
+          }
+        }
+        break;
+      }
+      case 'full_heal':
+        playerHp = INITIAL_HP;
+        tips.push('气血已满');
+        break;
+      case 'draw_15': {
+        const c = drawOne(state.recruitLevel, (c) => c.pointValue === 15);
+        // 若当前等级没解锁 15，放宽一次，不限解锁
+        const fallback = c
+          ? c
+          : (() => {
+              const idxs: number[] = [];
+              for (let i = 0; i < deck.length; i++) {
+                if (deck[i].pointValue === 15) idxs.push(i);
+              }
+              if (idxs.length === 0) return null;
+              const k = idxs[Math.floor(Math.random() * idxs.length)];
+              const picked = deck[k];
+              deck = deck.slice(0, k).concat(deck.slice(k + 1));
+              return picked;
+            })();
+        if (fallback) {
+          hand.push(fallback);
+          tips.push(`天降 ${fallback.name}（战力 15）`);
+        } else {
+          tips.push('牌库已无 15 点武将');
+        }
+        break;
+      }
+      case 'double_this_round':
+        doubleThisRoundActive = true;
+        tips.push('本回合军势将翻倍');
+        break;
+      case 'random_reroll_all': {
+        // 先把所有手牌 + 阵上武将放回牌库
+        const backToDeck: Card[] = [];
+        for (const c of hand) backToDeck.push(c);
+        for (const t of teams) for (const c of t) if (c) backToDeck.push(c);
+        deck = deck.concat(backToDeck);
+        // 洗牌
+        deck = shuffle(deck);
+        // 统计原来持有多少张
+        const originalCount = backToDeck.length;
+        // 重新按当前等级抽同样数量
+        hand = [];
+        teams = createEmptyTeams();
+        for (let i = 0; i < originalCount; i++) {
+          const c = drawOne(state.recruitLevel);
+          if (!c) break;
+          hand.push(c);
+        }
+        tips.push(`乾坤一掷 · 换得 ${hand.length} 员新将`);
+        break;
+      }
+      case 'free_redraws_3':
+        freeRedrawsLeft += 3;
+        tips.push('+3 免费换将令');
+        break;
+      default:
+        // passive 天赐无直接结算，只入账
+        break;
+    }
+
+    set({
+      deck,
+      hand,
+      teams,
+      gold,
+      playerHp,
+      freeRedrawsLeft,
+      doubleThisRoundActive,
+      talents: nextTalents,
+      pendingTalentChoices: null,
+      pendingTalentRound: null,
+      lastMessage: tips.join(' · '),
     });
   },
 
@@ -320,6 +493,17 @@ export const useGameStore = create<GameState>((set, get) => ({
     const cfg = ROUND_CONFIGS[nextRoundIdx];
     if (!cfg) return;
 
+    // 天赐（oneshot）：本回合战力翻倍
+    let settledPlayerPower = snapshot.totalPower;
+    if (state.doubleThisRoundActive) {
+      settledPlayerPower *= 2;
+    }
+    // 用于排名与对战的 snapshot 覆盖
+    const battleSnapshot: PowerSnapshot = {
+      ...snapshot,
+      totalPower: settledPlayerPower,
+    };
+
     // === 1. 模拟 7 位 AI 的行动（共享同一副牌库 deck） ===
     let workingDeck = state.deck.slice();
     const newAIs: AIState[] = [];
@@ -342,12 +526,19 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
     if (level >= 6) exp = 0;
 
-    // === 3. 随机两两对战：输者 -1 HP，平手不扣血 ===
+    // 天赐：结算同心时获得 +8 金币
+    let bonusGold = 0;
+    const hasFlushGold = state.talents.some((t) => t.templateId === 'flush_gives_8_gold');
+    if (hasFlushGold && snapshot.anyFlush) {
+      bonusGold += 8;
+    }
+
+    // === 3. 随机两两对战：输者按战力差扣血 ===
     const duelEntries: { id: string; name: string; totalPower: number }[] = [];
     duelEntries.push({
       id: 'player',
       name: '主公',
-      totalPower: snapshot.totalPower,
+      totalPower: settledPlayerPower,
     });
     for (const a of newAIs) {
       if (a.eliminatedAtRound === null) {
@@ -404,13 +595,35 @@ export const useGameStore = create<GameState>((set, get) => ({
         ais: aisAfterDuel,
         round: snapshot.round, // 停留在被淘汰的那一年
         isFinished: true,
-        powerHistory: [...state.powerHistory, snapshot],
+        powerHistory: [...state.powerHistory, battleSnapshot],
         playerHp: newPlayerHp,
         playerEliminatedAtRound,
         duelLog: newDuelLog,
+        doubleThisRoundActive: false,
         lastMessage: `诸侯混战 · 主公出局${eliminationMsg}`,
       });
       return;
+    }
+
+    // 天赐候选：威力加强模式下，进入第 2 / 第 4 年的年初触发
+    let pendingTalentChoices: TalentInstance[] | null = state.pendingTalentChoices;
+    let pendingTalentRound: number | null = state.pendingTalentRound;
+    let talentMsg = '';
+    if (
+      state.mode === 'empowered' &&
+      (nextRoundIdx === 2 || nextRoundIdx === 4)
+    ) {
+      pendingTalentChoices = rollTalents(state.talents);
+      pendingTalentRound = nextRoundIdx;
+      if (pendingTalentChoices.length > 0) {
+        talentMsg = ' · 天赐之兆降临，三选其一';
+      }
+    }
+
+    // 消耗 oneshot 天赐（double_this_round）
+    let nextTalents = state.talents;
+    if (state.doubleThisRoundActive) {
+      nextTalents = state.talents.filter((t) => t.templateId !== 'double_this_round');
     }
 
     set({
@@ -418,14 +631,18 @@ export const useGameStore = create<GameState>((set, get) => ({
       ais: aisAfterDuel,
       round: nextRoundIdx,
       freeRedrawsLeft: state.freeRedrawsLeft + cfg.freeRedrawsGain,
-      gold: state.gold + cfg.yearIncome,
-      powerHistory: [...state.powerHistory, snapshot],
+      gold: state.gold + cfg.yearIncome + bonusGold,
+      powerHistory: [...state.powerHistory, battleSnapshot],
       recruitLevel: level,
       recruitExp: exp,
       playerHp: newPlayerHp,
       playerEliminatedAtRound,
       duelLog: newDuelLog,
-      lastMessage: `进入${cfg.description} · 收入 +${cfg.yearIncome} 金币，经验 +${cfg.expGain}${eliminationMsg}`,
+      doubleThisRoundActive: false,
+      talents: nextTalents,
+      pendingTalentChoices,
+      pendingTalentRound,
+      lastMessage: `进入${cfg.description} · 收入 +${cfg.yearIncome} 金币，经验 +${cfg.expGain}${eliminationMsg}${talentMsg}`,
     });
   },
 

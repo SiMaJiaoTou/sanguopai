@@ -12,6 +12,7 @@ import {
 import { AnimatePresence } from 'framer-motion';
 import { useGameStore, type SlotTarget, type PowerSnapshot } from './store';
 import { evaluateHand } from './evaluate';
+import { buildEvalContext } from './talents';
 import {
   ROUND_CONFIGS,
   FINAL_ROUND,
@@ -38,6 +39,9 @@ import { FormationBroadcast } from './components/FormationBroadcast';
 import { AIStandings } from './components/AIStandings';
 import { DeckDrawer } from './components/DeckDrawer';
 import { DuelOverlay } from './components/DuelOverlay';
+import { ModeSelectionModal } from './components/ModeSelectionModal';
+import { TalentPickerModal } from './components/TalentPickerModal';
+import { TalentsPanel } from './components/TalentsPanel';
 
 function findCardById(
   hand: Card[],
@@ -59,41 +63,86 @@ export default function App() {
   const lastEffectSig = useRef<string>('');
 
   useEffect(() => {
-    if (state.hand.length === 0 && state.deck.length === 0 && state.round === 0 && state.gold === 0) {
+    // 仅在玩家已选择模式后才开局；未选择时显示模式选择弹窗
+    if (
+      state.modeChosen &&
+      state.hand.length === 0 &&
+      state.deck.length === 0 &&
+      state.round === 0 &&
+      state.gold === 0
+    ) {
       state.startNewGame();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [state.modeChosen]);
 
   const cfg = ROUND_CONFIGS[state.round];
   const teamsRequired = cfg.teamsRequired;
 
+  // 天赐被动效果上下文
+  const evalCtx = useMemo(
+    () => buildEvalContext(state.talents),
+    [state.talents],
+  );
+
   // 每队评估（仅满 5 员才成阵；否则按"武勇和 × 1 倍率"累计）
   const team0Eval = useMemo(() => {
     const cards = state.teams[0].filter((c): c is Card => !!c);
-    return cards.length === 5 ? evaluateHand(cards) : null;
-  }, [state.teams]);
+    return cards.length === 5 ? evaluateHand(cards, evalCtx) : null;
+  }, [state.teams, evalCtx]);
   const team1Eval = useMemo(() => {
     const cards = state.teams[1].filter((c): c is Card => !!c);
-    return cards.length === 5 ? evaluateHand(cards) : null;
-  }, [state.teams]);
+    return cards.length === 5 ? evaluateHand(cards, evalCtx) : null;
+  }, [state.teams, evalCtx]);
 
-  // 未成阵时的部分军势：武勇和 × 1（默认倍率）
+  // 手握百员加成：每张手牌基础勇武 +2（队伍未成阵时按部分战力叠加）
+  const perHandBonus = useMemo(() => {
+    const has = state.talents.some((t) => t.templateId === 'per_hand_card_2');
+    return has ? state.hand.length * 2 : 0;
+  }, [state.talents, state.hand.length]);
+
+  // 未成阵时的部分军势：经天赐 + 手握百员 调整后的武勇和
   const team0PartialPower = useMemo(() => {
     if (team0Eval) return team0Eval.power;
-    return state.teams[0]
+    const base = state.teams[0]
       .filter((c): c is Card => !!c)
-      .reduce((s, c) => s + c.pointValue, 0);
-  }, [state.teams, team0Eval]);
+      .reduce(
+        (s, c) =>
+          s +
+          c.pointValue +
+          (evalCtx.factionBonus[c.faction] ?? 0) +
+          (c.pointValue < 5 ? evalCtx.smallCardBonus : 0),
+        0,
+      );
+    return base + perHandBonus;
+  }, [state.teams, team0Eval, evalCtx, perHandBonus]);
   const team1PartialPower = useMemo(() => {
     if (team1Eval) return team1Eval.power;
-    return state.teams[1]
+    const base = state.teams[1]
       .filter((c): c is Card => !!c)
-      .reduce((s, c) => s + c.pointValue, 0);
-  }, [state.teams, team1Eval]);
+      .reduce(
+        (s, c) =>
+          s +
+          c.pointValue +
+          (evalCtx.factionBonus[c.faction] ?? 0) +
+          (c.pointValue < 5 ? evalCtx.smallCardBonus : 0),
+        0,
+      );
+    return base + (teamsRequired >= 2 ? perHandBonus : 0);
+  }, [state.teams, team1Eval, evalCtx, perHandBonus, teamsRequired]);
+
+  // 为满阵队伍也叠加"手握百员"（evaluateHand 没上下文外的这层），每个满阵队都获益
+  const team0PowerFinal = useMemo(() => {
+    if (!team0Eval) return team0PartialPower;
+    return team0Eval.power + perHandBonus;
+  }, [team0Eval, team0PartialPower, perHandBonus]);
+  const team1PowerFinal = useMemo(() => {
+    if (!team1Eval) return team1PartialPower;
+    return team1Eval.power + (teamsRequired >= 2 ? perHandBonus : 0);
+  }, [team1Eval, team1PartialPower, perHandBonus, teamsRequired]);
 
   const totalPower =
-    team0PartialPower + (teamsRequired >= 2 ? team1PartialPower : 0);
+    team0PowerFinal + (teamsRequired >= 2 ? team1PowerFinal : 0);
 
   const activeRankKeys = useMemo(() => {
     const keys: RankTypeKey[] = [];
@@ -183,11 +232,12 @@ export default function App() {
 
   const buildSnapshot = (): PowerSnapshot => ({
     round: state.round,
-    team0Power: team0PartialPower,
-    team1Power: teamsRequired >= 2 ? team1PartialPower : 0,
+    team0Power: team0PowerFinal,
+    team1Power: teamsRequired >= 2 ? team1PowerFinal : 0,
     totalPower,
     gold: state.gold,
     recruitLevel: state.recruitLevel,
+    anyFlush,
   });
 
   const handleNext = () => {
@@ -262,8 +312,8 @@ export default function App() {
               <TeamTabs
                 activeTeamIndex={activeTeamIndex}
                 onSwitch={setActiveTeamIndex}
-                team0Power={team0PartialPower}
-                team1Power={team1PartialPower}
+                team0Power={team0PowerFinal}
+                team1Power={team1PowerFinal}
                 team0Full={state.teams[0].every((c) => c !== null)}
                 team1Full={state.teams[1].every((c) => c !== null)}
               />
@@ -366,6 +416,13 @@ export default function App() {
               onUpgrade={state.upgradeLevel}
               disabled={state.isFinished}
             />
+            {state.mode === 'empowered' && (
+              <TalentsPanel
+                talents={state.talents}
+                mode={state.mode}
+                doubleThisRoundActive={state.doubleThisRoundActive}
+              />
+            )}
             <AIStandings
               ais={state.ais}
               playerTotalPower={totalPower}
@@ -414,6 +471,24 @@ export default function App() {
         onMaxLevel={state.gmMaxLevel}
         onFillHand={state.gmFillHand}
       />
+
+      {/* 初始模式选择弹窗（只在首次进入时展示） */}
+      <AnimatePresence>
+        {!state.modeChosen && (
+          <ModeSelectionModal onChoose={(m) => state.chooseMode(m)} />
+        )}
+      </AnimatePresence>
+
+      {/* 天赐三选一弹窗 */}
+      <AnimatePresence>
+        {state.pendingTalentChoices && state.pendingTalentChoices.length > 0 && (
+          <TalentPickerModal
+            round={state.pendingTalentRound ?? 0}
+            choices={state.pendingTalentChoices}
+            onPick={(id) => state.pickTalent(id)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

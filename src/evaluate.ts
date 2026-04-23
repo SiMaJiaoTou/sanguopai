@@ -1,4 +1,6 @@
 import type { Card, EvaluateResult, RankTypeKey } from './types';
+import type { EvalContext } from './talents';
+import { adjustedPointValue, hasThreeBrothers } from './talents';
 
 /**
  * 点数牌型（乘区 1，互斥取最高）
@@ -52,16 +54,25 @@ function countsEq(a: number[], b: number[]): boolean {
 /**
  * 核心评估函数
  * 战力 = pointSum × (rankScore + suitBonus)（无封顶）
+ * @param cards 五张武将
+ * @param ctx 天赐被动上下文（可选）
  */
-export function evaluateHand(cards: Card[]): EvaluateResult | null {
+export function evaluateHand(
+  cards: Card[],
+  ctx?: EvalContext,
+): EvaluateResult | null {
   if (!cards || cards.length !== 5) return null;
 
+  // 阵法判定仍按原始 pointValue（桃园结义不影响点数关系）
   const sorted = cards.slice().sort((a, b) => b.pointValue - a.pointValue);
   const values = sorted.map((c) => c.pointValue);
   const counts = getCountsDesc(sorted);
-  const flush = isFlush(sorted);
+  const rawFlush = isFlush(sorted);
+  const flush = rawFlush && !(ctx?.disableFlush ?? false);
   const straight = isStraight(values);
-  const pointSum = values.reduce((s, v) => s + v, 0);
+
+  // 勇武和采用经天赐调整过的 pointValue
+  const pointSum = cards.reduce((s, c) => s + adjustedPointValue(c, ctx), 0);
 
   // 点数牌型（互斥取最高）
   let rankType = RANK_TYPES.HIGH_CARD;
@@ -73,12 +84,26 @@ export function evaluateHand(cards: Card[]): EvaluateResult | null {
   else if (countsEq(counts, [2, 2, 1])) rankType = RANK_TYPES.TWO_PAIR;
   else if (countsEq(counts, [2, 1, 1, 1])) rankType = RANK_TYPES.ONE_PAIR;
 
-  const suitBonus = flush ? SUIT_BONUS.FLUSH.bonus : SUIT_BONUS.NONE.bonus;
-  const multiplier = rankType.score + suitBonus;
-  const rawPower = pointSum * multiplier;
+  // 阵法倍率（天赐可叠加）
+  const rankScoreExtra = ctx?.rankBonusExtra[rankType.key] ?? 0;
+  const effectiveRankScore = rankType.score + rankScoreExtra;
+
+  const suitBonus = flush
+    ? SUIT_BONUS.FLUSH.bonus + (ctx?.flushBonusExtra ?? 0)
+    : SUIT_BONUS.NONE.bonus;
+  const multiplier = effectiveRankScore + suitBonus;
+  let rawPower = pointSum * multiplier;
+
+  // 桃园结义：队伍同时含 关羽/刘备/张飞 → 翻倍
+  if (hasThreeBrothers(cards)) {
+    rawPower *= 2;
+  }
 
   return {
-    rankType,
+    rankType: {
+      ...rankType,
+      score: effectiveRankScore,
+    },
     suitBonus,
     isFlush: flush,
     multiplier,

@@ -1,0 +1,149 @@
+import { motion } from 'framer-motion';
+import type { TalentInstance } from '../talents';
+
+interface Props {
+  round: number;
+  choices: TalentInstance[];
+  onPick: (talentId: string) => void;
+}
+
+export function TalentPickerModal({ round, choices, onPick }: Props) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[65] flex items-center justify-center p-4"
+      style={{
+        background:
+          'radial-gradient(ellipse at center, rgba(20,10,4,0.9) 0%, rgba(0,0,0,0.96) 100%)',
+        backdropFilter: 'blur(6px)',
+      }}
+    >
+      <motion.div
+        initial={{ y: 20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        className="w-full max-w-[980px]"
+      >
+        <div className="text-center mb-6">
+          <div className="text-[11px] text-amber-200/65 tracking-[0.6em] font-kai mb-2">
+            第 {round} 年 · 天 命 显 征
+          </div>
+          <div
+            className="text-3xl sm:text-4xl font-black font-kai tracking-[0.3em]"
+            style={{
+              background:
+                'linear-gradient(180deg, #fff5cc 0%, #f7d57a 40%, #d4af37 70%, #6b4a10 100%)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              filter: 'drop-shadow(0 0 12px rgba(212,175,55,0.75))',
+            }}
+          >
+            请 三 择 其 一
+          </div>
+          <div className="text-[11px] text-amber-200/55 italic mt-2 font-kai">
+            · 天赐一经选定，永随本局，影响结算 ·
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {choices.map((t, i) => (
+            <motion.button
+              key={t.id}
+              initial={{ y: 30, opacity: 0, scale: 0.9 }}
+              animate={{ y: 0, opacity: 1, scale: 1 }}
+              transition={{ delay: 0.15 + i * 0.12, type: 'spring', stiffness: 180 }}
+              whileHover={{ y: -6, scale: 1.03 }}
+              whileTap={{ y: 2, scale: 0.98 }}
+              onClick={() => onPick(t.id)}
+              className="relative p-5 rounded-lg text-left font-kai overflow-hidden"
+              style={{
+                background:
+                  'linear-gradient(180deg, #2a1810 0%, #1a0f08 100%)',
+                border: `2px solid ${t.accent}`,
+                boxShadow: `0 0 18px ${t.accent}55, 0 8px 20px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,240,200,0.22)`,
+              }}
+            >
+              {/* 光晕 */}
+              <div
+                className="absolute inset-0 pointer-events-none opacity-30"
+                style={{
+                  background: `radial-gradient(ellipse at top, ${t.accent}55 0%, transparent 65%)`,
+                }}
+              />
+
+              {/* 顶部图标 + 类型 */}
+              <div className="relative flex items-start justify-between mb-3">
+                <div
+                  className="flex items-center justify-center w-12 h-12 rounded-full text-2xl"
+                  style={{
+                    background: `radial-gradient(circle at 30% 25%, ${t.accent}88 0%, ${t.accent}44 50%, transparent 85%)`,
+                    border: `2px solid ${t.accent}`,
+                    boxShadow: `0 0 10px ${t.accent}77`,
+                  }}
+                >
+                  {t.icon}
+                </div>
+                <span
+                  className="text-[9px] tracking-[0.3em] uppercase font-black"
+                  style={{
+                    color: t.accent,
+                    padding: '2px 7px',
+                    border: `1px solid ${t.accent}88`,
+                    borderRadius: 3,
+                    background: 'rgba(0,0,0,0.4)',
+                  }}
+                >
+                  {t.kind === 'passive'
+                    ? '永续'
+                    : t.kind === 'instant'
+                      ? '即效'
+                      : '一次'}
+                </span>
+              </div>
+
+              {/* 名字 */}
+              <div
+                className="relative text-xl font-black tracking-[0.22em] mb-2"
+                style={{
+                  color: '#fff',
+                  background: `linear-gradient(180deg, #fff5cc 0%, ${t.accent} 70%, #6b4a10 100%)`,
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  filter: `drop-shadow(0 0 8px ${t.accent}aa)`,
+                }}
+              >
+                {t.name}
+              </div>
+
+              {/* 描述 */}
+              <div className="relative text-[12.5px] text-amber-100/85 leading-relaxed tracking-wider">
+                {t.description}
+              </div>
+
+              {/* 选择按钮提示 */}
+              <div className="relative mt-4 text-center">
+                <span
+                  className="inline-block text-[11px] tracking-[0.35em] font-black px-3 py-1.5 rounded"
+                  style={{
+                    color: t.accent,
+                    border: `1px solid ${t.accent}`,
+                    background: 'rgba(0,0,0,0.5)',
+                  }}
+                >
+                  择 此
+                </span>
+              </div>
+            </motion.button>
+          ))}
+        </div>
+
+        {choices.length === 0 && (
+          <div className="text-center text-amber-200/60 italic font-kai py-6">
+            · 天道无为，暂无可择之赐 ·
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
