@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import * as THREE from 'three';
 import type { Card, EvaluateResult, Faction } from '../types';
 import { FORMATIONS } from '../formations';
+import { HorseSealBadge } from './HorseSealBadge';
 
 interface Props {
   teamIndex: number;
@@ -1164,6 +1165,19 @@ function SlotCell({
   return (
     <div ref={setNodeRef} className="relative w-full h-full">
       {card && <DraggableOverlay card={card} />}
+      {card?.horseSeal && (
+        <div
+          className="absolute pointer-events-auto"
+          style={{
+            // 固定贴在格子右上角，尺寸不随 3D 投影缩放过度（最小 22，最大 32）
+            top: 4,
+            right: 4,
+            zIndex: 30,
+          }}
+        >
+          <HorseSealBadge seal={card.horseSeal} size={26} fontSize={12} />
+        </div>
+      )}
     </div>
   );
 }
