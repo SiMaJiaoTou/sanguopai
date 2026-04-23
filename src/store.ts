@@ -9,6 +9,14 @@ import {
   LEVEL_EXP_REQUIRED,
   levelUnlockedValues,
 } from './data';
+import {
+  type AIState,
+  createInitialAIs,
+  simulateAITurn,
+  runDuels,
+  type DuelResult,
+  INITIAL_HP,
+} from './ai';
 
 export interface PowerSnapshot {
   round: number;
@@ -40,6 +48,13 @@ export interface GameState {
 
   // 提示
   lastMessage: string | null;         // 简短操作反馈（如"招募失败：已无可招卡"）
+
+  // 七路诸侯 AI
+  ais: AIState[];
+  playerHp: number;                        // 玩家剩余血量（初始 3）
+  playerEliminatedAtRound: number | null;  // 玩家被淘汰的年份
+  /** 每回合对战战报 */
+  duelLog: { round: number; result: DuelResult; hpDelta: Record<string, number> }[];
 
   // 动作
   startNewGame: () => void;
@@ -120,6 +135,10 @@ export const useGameStore = create<GameState>((set, get) => ({
   recruitExp: 0,
   freeRedrawsLeft: 0,
   lastMessage: null,
+  ais: [],
+  playerHp: INITIAL_HP,
+  playerEliminatedAtRound: null,
+  duelLog: [],
 
   startNewGame: () => {
     const shuffled = shuffle(generateDeck());
@@ -158,6 +177,10 @@ export const useGameStore = create<GameState>((set, get) => ({
       recruitExp: 0,
       freeRedrawsLeft: cfg.freeRedrawsGain,
       lastMessage: '新局开始 · 点击【招募】按钮买卡组建军团',
+      ais: createInitialAIs(),
+      playerHp: INITIAL_HP,
+      playerEliminatedAtRound: null,
+      duelLog: [],
     });
   },
 
@@ -287,6 +310,8 @@ export const useGameStore = create<GameState>((set, get) => ({
   nextRound: (snapshot) => {
     const state = get();
     if (state.isFinished) return;
+
+    // 最终回合 → settleFinal 处理
     if (state.round >= FINAL_ROUND) {
       set({ isFinished: true, powerHistory: [...state.powerHistory, snapshot] });
       return;
@@ -295,7 +320,20 @@ export const useGameStore = create<GameState>((set, get) => ({
     const cfg = ROUND_CONFIGS[nextRoundIdx];
     if (!cfg) return;
 
-    // 自动升级经验结算
+    // === 1. 模拟 7 位 AI 的行动（共享同一副牌库 deck） ===
+    let workingDeck = state.deck.slice();
+    const newAIs: AIState[] = [];
+    for (const ai of state.ais) {
+      if (ai.eliminatedAtRound !== null) {
+        newAIs.push(ai);
+        continue;
+      }
+      const r = simulateAITurn(ai, workingDeck, nextRoundIdx);
+      workingDeck = r.deck;
+      newAIs.push(r.ai);
+    }
+
+    // === 2. 玩家自己的年度结算 ===
     let level = state.recruitLevel;
     let exp = state.recruitExp + cfg.expGain;
     while (level < 6 && exp >= LEVEL_EXP_REQUIRED[level]) {
@@ -304,14 +342,90 @@ export const useGameStore = create<GameState>((set, get) => ({
     }
     if (level >= 6) exp = 0;
 
+    // === 3. 随机两两对战：输者 -1 HP，平手不扣血 ===
+    const duelEntries: { id: string; name: string; totalPower: number }[] = [];
+    duelEntries.push({
+      id: 'player',
+      name: '主公',
+      totalPower: snapshot.totalPower,
+    });
+    for (const a of newAIs) {
+      if (a.eliminatedAtRound === null) {
+        duelEntries.push({
+          id: a.id,
+          name: a.name,
+          totalPower: a.lastTotalPower,
+        });
+      }
+    }
+    const { result: duelResult, hpDelta } = runDuels(duelEntries);
+
+    let newPlayerHp = state.playerHp + (hpDelta['player'] ?? 0);
+    if (newPlayerHp < 0) newPlayerHp = 0;
+
+    // 更新 AI 血量 & 淘汰状态
+    const aisAfterDuel: AIState[] = newAIs.map((a) => {
+      if (a.eliminatedAtRound !== null) return a;
+      const delta = hpDelta[a.id] ?? 0;
+      const nextHp = Math.max(0, a.hp + delta);
+      if (nextHp <= 0) {
+        return {
+          ...a,
+          hp: 0,
+          eliminatedAtRound: snapshot.round,
+        };
+      }
+      return { ...a, hp: nextHp };
+    });
+
+    let playerEliminatedAtRound = state.playerEliminatedAtRound;
+    let eliminationMsg = '';
+    if (newPlayerHp <= 0) {
+      playerEliminatedAtRound = snapshot.round;
+      eliminationMsg = ` · 主公血量耗尽，于第 ${snapshot.round} 年兵败！`;
+    } else {
+      const fallen = aisAfterDuel
+        .filter((a) => a.eliminatedAtRound === snapshot.round)
+        .map((a) => a.name);
+      if (fallen.length > 0) {
+        eliminationMsg = ` · 诸侯【${fallen.join('、')}】兵败身死`;
+      }
+    }
+
+    const newDuelLog = [
+      ...state.duelLog,
+      { round: snapshot.round, result: duelResult, hpDelta },
+    ];
+
+    // 若玩家被淘汰 → 游戏结束（但仍保存 snapshot）
+    if (playerEliminatedAtRound !== null) {
+      set({
+        deck: workingDeck,
+        ais: aisAfterDuel,
+        round: snapshot.round, // 停留在被淘汰的那一年
+        isFinished: true,
+        powerHistory: [...state.powerHistory, snapshot],
+        playerHp: newPlayerHp,
+        playerEliminatedAtRound,
+        duelLog: newDuelLog,
+        lastMessage: `诸侯混战 · 主公出局${eliminationMsg}`,
+      });
+      return;
+    }
+
     set({
+      deck: workingDeck,
+      ais: aisAfterDuel,
       round: nextRoundIdx,
       freeRedrawsLeft: state.freeRedrawsLeft + cfg.freeRedrawsGain,
       gold: state.gold + cfg.yearIncome,
       powerHistory: [...state.powerHistory, snapshot],
       recruitLevel: level,
       recruitExp: exp,
-      lastMessage: `进入${cfg.description} · 收入 +${cfg.yearIncome} 金币，经验 +${cfg.expGain}`,
+      playerHp: newPlayerHp,
+      playerEliminatedAtRound,
+      duelLog: newDuelLog,
+      lastMessage: `进入${cfg.description} · 收入 +${cfg.yearIncome} 金币，经验 +${cfg.expGain}${eliminationMsg}`,
     });
   },
 
@@ -323,7 +437,43 @@ export const useGameStore = create<GameState>((set, get) => ({
       last && last.round === snapshot.round
         ? [...state.powerHistory.slice(0, -1), snapshot]
         : [...state.powerHistory, snapshot];
-    set({ isFinished: true, powerHistory: history });
+
+    // 终局也做一次两两对战结算血量（最后一年的 AI 已经在前一次 nextRound 中模拟过）
+    const duelEntries: { id: string; name: string; totalPower: number }[] = [];
+    duelEntries.push({
+      id: 'player',
+      name: '主公',
+      totalPower: snapshot.totalPower,
+    });
+    for (const a of state.ais) {
+      if (a.eliminatedAtRound === null) {
+        duelEntries.push({
+          id: a.id,
+          name: a.name,
+          totalPower: a.lastTotalPower,
+        });
+      }
+    }
+    const { result: duelResult, hpDelta } = runDuels(duelEntries);
+    let newPlayerHp = state.playerHp + (hpDelta['player'] ?? 0);
+    if (newPlayerHp < 0) newPlayerHp = 0;
+    const aisAfterDuel: AIState[] = state.ais.map((a) => {
+      if (a.eliminatedAtRound !== null) return a;
+      const delta = hpDelta[a.id] ?? 0;
+      const nextHp = Math.max(0, a.hp + delta);
+      if (nextHp <= 0) {
+        return { ...a, hp: 0, eliminatedAtRound: snapshot.round };
+      }
+      return { ...a, hp: nextHp };
+    });
+
+    set({
+      isFinished: true,
+      powerHistory: history,
+      playerHp: newPlayerHp,
+      ais: aisAfterDuel,
+      duelLog: [...state.duelLog, { round: snapshot.round, result: duelResult, hpDelta }],
+    });
   },
 
   autoPlace: () => {

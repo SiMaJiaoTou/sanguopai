@@ -35,6 +35,9 @@ import { HandEffect, buildEffect, type EffectTrigger } from './components/HandEf
 import { GMTool } from './components/GMTool';
 import { TeamTabs } from './components/TeamTabs';
 import { FormationBroadcast } from './components/FormationBroadcast';
+import { AIStandings } from './components/AIStandings';
+import { DeckDrawer } from './components/DeckDrawer';
+import { DuelOverlay } from './components/DuelOverlay';
 
 function findCardById(
   hand: Card[],
@@ -230,6 +233,16 @@ export default function App() {
       {/* 阵法播报横幅：观察所有军团，某队阵法从无到有 / 阵法变化时触发 */}
       <FormationBroadcast teamEvals={[team0Eval, team1Eval]} />
 
+      {/* 诸侯两两对战动画 */}
+      <DuelOverlay
+        duel={state.duelLog[state.duelLog.length - 1] ?? null}
+        currentHp={(() => {
+          const m: Record<string, number> = { player: state.playerHp };
+          for (const a of state.ais) m[a.id] = a.hp;
+          return m;
+        })()}
+      />
+
       <DndContext
         sensors={sensors}
         onDragStart={onDragStart}
@@ -353,6 +366,13 @@ export default function App() {
               onUpgrade={state.upgradeLevel}
               disabled={state.isFinished}
             />
+            <AIStandings
+              ais={state.ais}
+              playerTotalPower={totalPower}
+              playerHp={state.playerHp}
+              playerEliminated={state.playerEliminatedAtRound !== null}
+              latestDuel={state.duelLog[state.duelLog.length - 1] ?? null}
+            />
             <HandTypeTable activeRankKeys={activeRankKeys} anyFlush={anyFlush} />
             <PowerChart
               history={state.powerHistory}
@@ -384,6 +404,9 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+
+      {/* 牌库抽屉（右下角固定按钮 + 弹出抽屉） */}
+      <DeckDrawer deck={state.deck} />
 
       {/* GM 调试工具 */}
       <GMTool
