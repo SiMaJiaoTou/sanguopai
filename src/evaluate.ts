@@ -26,7 +26,7 @@ export const SUIT_BONUS = {
   NONE: { key: 'NONE' as const, name: '未同心', bonus: 0 },
 };
 
-/** 顺子判定：5 张互不相同且点数连续 */
+/** 经典 5 张顺子：互不相同且点数连续 */
 function isStraight(sortedDescValues: number[]): boolean {
   const unique = new Set(sortedDescValues);
   if (unique.size !== 5) return false;
@@ -34,6 +34,23 @@ function isStraight(sortedDescValues: number[]): boolean {
     if (sortedDescValues[i] - sortedDescValues[i + 1] !== 1) return false;
   }
   return true;
+}
+
+/** 长蛇速成：5 张里存在 4 张互不相同且连续的点数 */
+function hasFourStraight(sortedDescValues: number[]): boolean {
+  // 去重后的不同点数
+  const unique = Array.from(new Set(sortedDescValues)).sort((a, b) => b - a);
+  if (unique.length < 4) return false;
+  for (let i = 0; i + 3 < unique.length; i++) {
+    if (
+      unique[i] - unique[i + 1] === 1 &&
+      unique[i + 1] - unique[i + 2] === 1 &&
+      unique[i + 2] - unique[i + 3] === 1
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function getCountsDesc(cards: Card[]): number[] {
@@ -69,10 +86,17 @@ export function evaluateHand(
   const counts = getCountsDesc(sorted);
   const rawFlush = isFlush(sorted);
   const flush = rawFlush && !(ctx?.disableFlush ?? false);
-  const straight = isStraight(values);
+  const classicStraight = isStraight(values);
+  // 长蛇速成：4 张连号也算顺子（只在未命中经典顺子时回落到此判定）
+  const shortStraight = ctx?.shortStraight && hasFourStraight(values);
+  const straight = classicStraight || !!shortStraight;
 
   // 勇武和采用经天赐调整过的 pointValue
-  const pointSum = cards.reduce((s, c) => s + adjustedPointValue(c, ctx), 0);
+  let pointSum = cards.reduce((s, c) => s + adjustedPointValue(c, ctx), 0);
+  // 散金养士：每 1 金 → +2 基础勇武（队伍基础）
+  if (ctx?.goldToProwess) {
+    pointSum += (ctx.goldForBonus ?? 0) * 2;
+  }
 
   // 点数牌型（互斥取最高）
   let rankType = RANK_TYPES.HIGH_CARD;

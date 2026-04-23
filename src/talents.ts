@@ -19,7 +19,11 @@ export type TalentTemplateId =
   | 'three_brothers_double'
   | 'random_reroll_all'
   | 'flush_gives_8_gold'
-  | 'free_redraws_3';
+  | 'free_redraws_3'
+  | 'short_straight'
+  | 'point_15_as_30'
+  | 'point_3_as_14'
+  | 'gold_to_prowess';
 
 export interface TalentInstance {
   /** 每次 roll 生成的唯一 id */
@@ -188,6 +192,38 @@ const TEMPLATES: Record<TalentTemplateId, Template> = {
     accent: '#93c5fd',
     icon: '🔄',
   },
+  short_straight: {
+    templateId: 'short_straight',
+    name: '长蛇速成',
+    description: '【长蛇阵】只需四张连号武将即可触发',
+    kind: 'passive',
+    accent: '#34d399',
+    icon: '🐍',
+  },
+  point_15_as_30: {
+    templateId: 'point_15_as_30',
+    name: '王者归朝',
+    description: '所有战力 15 的武将，结算时勇武视为 30',
+    kind: 'passive',
+    accent: '#facc15',
+    icon: '👑',
+  },
+  point_3_as_14: {
+    templateId: 'point_3_as_14',
+    name: '卒升车将',
+    description: '所有战力 3 的武将，结算时勇武视为 14',
+    kind: 'passive',
+    accent: '#84cc16',
+    icon: '⚙',
+  },
+  gold_to_prowess: {
+    templateId: 'gold_to_prowess',
+    name: '散金养士',
+    description: '结算时，你每持 1 金币，基础勇武 +2',
+    kind: 'passive',
+    accent: '#eab308',
+    icon: '💹',
+  },
 };
 
 let __talentSeq = 0;
@@ -213,7 +249,7 @@ function instantiate(
   };
 }
 
-/** 从当前可用模板集中随机生成 3 个候选（不重复） */
+/** 从当前可用模板集中随机生成 5 个候选（不重复） */
 export function rollTalents(owned: TalentInstance[]): TalentInstance[] {
   // 排除已拥有的（非 stackable）
   const ownedTemplateIds = new Set(
@@ -246,13 +282,13 @@ export function rollTalents(owned: TalentInstance[]): TalentInstance[] {
     pool.push({ tmpl });
   }
 
-  // 洗牌取前 3（若候选池不足 3，取尽）
+  // 洗牌取前 5（若候选池不足 5，取尽）
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
 
-  const picks = pool.slice(0, 3);
+  const picks = pool.slice(0, 5);
   return picks.map(({ tmpl, payload }) => instantiate(tmpl, payload));
 }
 
@@ -271,15 +307,33 @@ export interface EvalContext {
   disableFlush: boolean;
   /** 每个阵法 score 的额外加成 */
   rankBonusExtra: Partial<Record<RankTypeKey, number>>;
+  /** 点数 == 15 的武将勇武固定替换（王者归朝） */
+  value15As: number | null;
+  /** 点数 == 3 的武将勇武固定替换（卒升车将） */
+  value3As: number | null;
+  /** 长蛇阵只需 4 张连号（长蛇速成） */
+  shortStraight: boolean;
+  /** 散金养士：每 1 金币 → 队伍基础勇武 +2（由 App/evaluate 外层叠加） */
+  goldToProwess: boolean;
+  /** 当前金币数（evaluate 外部提供）—— 仅用于 goldToProwess 计算 */
+  goldForBonus: number;
 }
 
-export function buildEvalContext(talents: TalentInstance[]): EvalContext {
+export function buildEvalContext(
+  talents: TalentInstance[],
+  opts: { gold?: number } = {},
+): EvalContext {
   const ctx: EvalContext = {
     factionBonus: { 魏: 0, 蜀: 0, 吴: 0, 群: 0 },
     smallCardBonus: 0,
     flushBonusExtra: 0,
     disableFlush: false,
     rankBonusExtra: {},
+    value15As: null,
+    value3As: null,
+    shortStraight: false,
+    goldToProwess: false,
+    goldForBonus: opts.gold ?? 0,
   };
   for (const t of talents) {
     switch (t.templateId) {
@@ -307,6 +361,18 @@ export function buildEvalContext(talents: TalentInstance[]): EvalContext {
             (ctx.rankBonusExtra[t.rankKey] ?? 0) + 2;
         }
         break;
+      case 'point_15_as_30':
+        ctx.value15As = 30;
+        break;
+      case 'point_3_as_14':
+        ctx.value3As = 14;
+        break;
+      case 'short_straight':
+        ctx.shortStraight = true;
+        break;
+      case 'gold_to_prowess':
+        ctx.goldToProwess = true;
+        break;
       default:
         break;
     }
@@ -320,8 +386,13 @@ export function adjustedPointValue(
   ctx?: EvalContext,
 ): number {
   if (!ctx) return card.pointValue;
+  // 固定替换优先（王者归朝 / 卒升车将）
   let pv = card.pointValue;
+  if (pv === 15 && ctx.value15As !== null) pv = ctx.value15As;
+  else if (pv === 3 && ctx.value3As !== null) pv = ctx.value3As;
+  // 阵营加成
   pv += ctx.factionBonus[card.faction] ?? 0;
+  // 小点数加成（按原始 pointValue 判定）
   if (card.pointValue < 5) pv += ctx.smallCardBonus;
   return pv;
 }

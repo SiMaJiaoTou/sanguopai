@@ -12,7 +12,7 @@ import {
 import { AnimatePresence } from 'framer-motion';
 import { useGameStore, type SlotTarget, type PowerSnapshot } from './store';
 import { evaluateHand } from './evaluate';
-import { buildEvalContext } from './talents';
+import { buildEvalContext, adjustedPointValue } from './talents';
 import {
   ROUND_CONFIGS,
   FINAL_ROUND,
@@ -81,8 +81,8 @@ export default function App() {
 
   // 天赐被动效果上下文
   const evalCtx = useMemo(
-    () => buildEvalContext(state.talents),
-    [state.talents],
+    () => buildEvalContext(state.talents, { gold: state.gold }),
+    [state.talents, state.gold],
   );
 
   // 每队评估（仅满 5 员才成阵；否则按"武勇和 × 1 倍率"累计）
@@ -101,7 +101,13 @@ export default function App() {
     return has ? state.hand.length * 2 : 0;
   }, [state.talents, state.hand.length]);
 
-  // 未成阵时的部分军势：经天赐 + 手握百员 调整后的武勇和
+  // 散金养士：每 1 金币基础勇武 +2（未成阵时也叠加到部分战力上）
+  const goldBonus = useMemo(() => {
+    const has = state.talents.some((t) => t.templateId === 'gold_to_prowess');
+    return has ? state.gold * 2 : 0;
+  }, [state.talents, state.gold]);
+
+  // 未成阵时的部分军势：经天赐 + 手握百员 + 散金养士 调整后的武勇和
   const team0PartialPower = useMemo(() => {
     if (team0Eval) return team0Eval.power;
     const base = state.teams[0]
@@ -109,13 +115,11 @@ export default function App() {
       .reduce(
         (s, c) =>
           s +
-          c.pointValue +
-          (evalCtx.factionBonus[c.faction] ?? 0) +
-          (c.pointValue < 5 ? evalCtx.smallCardBonus : 0),
+          adjustedPointValue(c, evalCtx),
         0,
       );
-    return base + perHandBonus;
-  }, [state.teams, team0Eval, evalCtx, perHandBonus]);
+    return base + perHandBonus + goldBonus;
+  }, [state.teams, team0Eval, evalCtx, perHandBonus, goldBonus]);
   const team1PartialPower = useMemo(() => {
     if (team1Eval) return team1Eval.power;
     const base = state.teams[1]
@@ -123,15 +127,13 @@ export default function App() {
       .reduce(
         (s, c) =>
           s +
-          c.pointValue +
-          (evalCtx.factionBonus[c.faction] ?? 0) +
-          (c.pointValue < 5 ? evalCtx.smallCardBonus : 0),
+          adjustedPointValue(c, evalCtx),
         0,
       );
-    return base + (teamsRequired >= 2 ? perHandBonus : 0);
-  }, [state.teams, team1Eval, evalCtx, perHandBonus, teamsRequired]);
+    return base + (teamsRequired >= 2 ? perHandBonus + goldBonus : 0);
+  }, [state.teams, team1Eval, evalCtx, perHandBonus, goldBonus, teamsRequired]);
 
-  // 为满阵队伍也叠加"手握百员"（evaluateHand 没上下文外的这层），每个满阵队都获益
+  // 为满阵队伍也叠加"手握百员"（evaluateHand 已含 gold-to-prowess）
   const team0PowerFinal = useMemo(() => {
     if (!team0Eval) return team0PartialPower;
     return team0Eval.power + perHandBonus;
@@ -479,7 +481,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* 天赐三选一弹窗 */}
+      {/* 天赐五选一弹窗 */}
       <AnimatePresence>
         {state.pendingTalentChoices && state.pendingTalentChoices.length > 0 && (
           <TalentPickerModal

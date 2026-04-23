@@ -616,7 +616,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       pendingTalentChoices = rollTalents(state.talents);
       pendingTalentRound = nextRoundIdx;
       if (pendingTalentChoices.length > 0) {
-        talentMsg = ' · 天赐之兆降临，三选其一';
+        talentMsg = ' · 天赐之兆降临，五选其一';
       }
     }
 
