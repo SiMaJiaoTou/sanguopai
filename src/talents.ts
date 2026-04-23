@@ -249,7 +249,7 @@ function instantiate(
   };
 }
 
-/** 从当前可用模板集中随机生成 5 个候选（不重复） */
+/** 从当前可用模板集中随机生成 4 个候选（不重复） */
 export function rollTalents(owned: TalentInstance[]): TalentInstance[] {
   // 排除已拥有的（非 stackable）
   const ownedTemplateIds = new Set(
@@ -288,7 +288,7 @@ export function rollTalents(owned: TalentInstance[]): TalentInstance[] {
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
 
-  const picks = pool.slice(0, 5);
+  const picks = pool.slice(0, 4);
   return picks.map(({ tmpl, payload }) => instantiate(tmpl, payload));
 }
 
@@ -317,11 +317,13 @@ export interface EvalContext {
   goldToProwess: boolean;
   /** 当前金币数（evaluate 外部提供）—— 仅用于 goldToProwess 计算 */
   goldForBonus: number;
+  /** 【白龙马】手牌中该印记的数量 → 阵法倍率 +1 每张 */
+  bailongInHand: number;
 }
 
 export function buildEvalContext(
   talents: TalentInstance[],
-  opts: { gold?: number } = {},
+  opts: { gold?: number; bailongInHand?: number } = {},
 ): EvalContext {
   const ctx: EvalContext = {
     factionBonus: { 魏: 0, 蜀: 0, 吴: 0, 群: 0 },
@@ -334,6 +336,7 @@ export function buildEvalContext(
     shortStraight: false,
     goldToProwess: false,
     goldForBonus: opts.gold ?? 0,
+    bailongInHand: opts.bailongInHand ?? 0,
   };
   for (const t of talents) {
     switch (t.templateId) {
@@ -382,10 +385,13 @@ export function buildEvalContext(
 
 /** 每张武将根据上下文计算出的"调整后 pointValue"（用于勇武/点数和显示） */
 export function adjustedPointValue(
-  card: { faction: Faction; pointValue: number },
+  card: { faction: Faction; pointValue: number; horseSeal?: string },
   ctx?: EvalContext,
 ): number {
-  if (!ctx) return card.pointValue;
+  if (!ctx) {
+    // 没有 ctx 时仅处理 horseSeal dilu 的翻倍（神马印记是全模式生效，不依赖天赐）
+    return card.horseSeal === 'dilu' ? card.pointValue * 2 : card.pointValue;
+  }
   // 固定替换优先（王者归朝 / 卒升车将）
   let pv = card.pointValue;
   if (pv === 15 && ctx.value15As !== null) pv = ctx.value15As;
@@ -394,6 +400,8 @@ export function adjustedPointValue(
   pv += ctx.factionBonus[card.faction] ?? 0;
   // 小点数加成（按原始 pointValue 判定）
   if (card.pointValue < 5) pv += ctx.smallCardBonus;
+  // 【的卢马】双发：本张武将的勇武值额外触发一次
+  if (card.horseSeal === 'dilu') pv *= 2;
   return pv;
 }
 

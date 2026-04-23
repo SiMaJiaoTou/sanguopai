@@ -22,6 +22,7 @@ import {
   rollTalents,
   buildEvalContext,
 } from './talents';
+import { applyRandomHorseSeals } from './horseSeals';
 
 export type GameMode = 'normal' | 'empowered';
 
@@ -34,6 +35,8 @@ export interface PowerSnapshot {
   recruitLevel: number;
   /** 本回合玩家是否触发至少一次同心（用于天赐结算） */
   anyFlush?: boolean;
+  /** 本回合上阵【绝影马】数量（用于神马结算发金） */
+  jueyingOnBoard?: number;
 }
 
 export interface GameState {
@@ -167,6 +170,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   doubleThisRoundActive: false,
 
   startNewGame: () => {
+    const currentMode = get().mode;
     const shuffled = shuffle(generateDeck());
     const cfg = ROUND_CONFIGS[0];
     // 开局抽 5 张，但只能抽到 Lv1 解锁池内的（3~6 点）
@@ -189,6 +193,11 @@ export const useGameStore = create<GameState>((set, get) => ({
       if (!r.card) break;
       drawn.push(r.card);
       working = r.rest;
+    }
+
+    // 威力加强模式：在剩余牌库中随机挑 20 张盖上神马印记
+    if (currentMode === 'empowered') {
+      working = applyRandomHorseSeals(working, 20);
     }
     set({
       deck: working,
@@ -422,9 +431,14 @@ export const useGameStore = create<GameState>((set, get) => ({
       deck: r.rest,
       hand,
       teams,
-      freeRedrawsLeft: useFree ? state.freeRedrawsLeft - 1 : state.freeRedrawsLeft,
+      freeRedrawsLeft:
+        (useFree ? state.freeRedrawsLeft - 1 : state.freeRedrawsLeft) +
+        (removed.horseSeal === 'chitu' ? 1 : 0),
       gold: useFree ? state.gold : state.gold - ECONOMY_CONFIG.paidRedrawCost,
-      lastMessage: useFree ? '已使用免费换将令' : `付费换牌 -${ECONOMY_CONFIG.paidRedrawCost} 金币`,
+      lastMessage:
+        removed.horseSeal === 'chitu'
+          ? `【赤兔马】归山 · +1 免费换将${useFree ? '（本次消耗免费）' : ` · -${ECONOMY_CONFIG.paidRedrawCost} 金`}`
+          : useFree ? '已使用免费换将令' : `付费换牌 -${ECONOMY_CONFIG.paidRedrawCost} 金币`,
     });
   },
 
@@ -532,6 +546,10 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (hasFlushGold && snapshot.anyFlush) {
       bonusGold += 8;
     }
+    // 神马【绝影马】：上阵参与计分者每张 +3 金
+    if (snapshot.jueyingOnBoard && snapshot.jueyingOnBoard > 0) {
+      bonusGold += snapshot.jueyingOnBoard * 3;
+    }
 
     // === 3. 随机两两对战：输者按战力差扣血 ===
     const duelEntries: { id: string; name: string; totalPower: number }[] = [];
@@ -616,7 +634,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       pendingTalentChoices = rollTalents(state.talents);
       pendingTalentRound = nextRoundIdx;
       if (pendingTalentChoices.length > 0) {
-        talentMsg = ' · 天赐之兆降临，五选其一';
+        talentMsg = ' · 天赐之兆降临，四选其一';
       }
     }
 

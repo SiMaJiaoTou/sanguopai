@@ -23,13 +23,15 @@ export interface AIState {
   name: string;
   title: string;
   hand: Card[];
-  teams: (Card | null)[][];        // 2 × 5，固定 2 队保留
+  teams: (Card | null)[][];        // 2 × 5
   gold: number;
   recruitLevel: RecruitLevel;
   recruitExp: number;
-  lastTotalPower: number;          // 上一回合结算的总战力（用于排名）
-  hp: number;                      // 生命值（3 点）
-  eliminatedAtRound: number | null; // null = 存活；数字 = 在第 N 年被淘汰
+  buyCount: number;                // AI 自身的买卡计数（影响下次价格）
+  freeRedrawsLeft: number;         // 自己累计的免费换牌次数
+  lastTotalPower: number;
+  hp: number;
+  eliminatedAtRound: number | null;
 }
 
 /** 每名玩家/AI 初始血量 */
@@ -49,21 +51,26 @@ export function createInitialAIs(): AIState[] {
     gold: 4,
     recruitLevel: 1,
     recruitExp: 0,
+    buyCount: 0,
+    freeRedrawsLeft: 0,
     lastTotalPower: 0,
     hp: INITIAL_HP,
     eliminatedAtRound: null,
   }));
 }
 
-/** 从牌库中按等级解锁池抽一张，并返回剩余牌库 */
+/** 从牌库中按等级解锁池抽一张，并返回剩余牌库（可选 filter） */
 function drawOneUnlockedFromDeck(
   deck: Card[],
   level: number,
+  filter?: (c: Card) => boolean,
 ): { card: Card | null; rest: Card[] } {
   const unlocked = levelUnlockedValues(level);
   const indices: number[] = [];
   for (let i = 0; i < deck.length; i++) {
-    if (unlocked.has(deck[i].pointValue)) indices.push(i);
+    if (!unlocked.has(deck[i].pointValue)) continue;
+    if (filter && !filter(deck[i])) continue;
+    indices.push(i);
   }
   if (indices.length === 0) return { card: null, rest: deck };
   const pickIdx = indices[Math.floor(Math.random() * indices.length)];
@@ -72,12 +79,36 @@ function drawOneUnlockedFromDeck(
   return { card, rest };
 }
 
-/** 买卡价格（与玩家同步规则：1, 2, 3, ...） */
+/** 买卡价格（1, 2, 3, …） */
 function aiBuyCardPrice(buyCount: number): number {
   return 1 + buyCount;
 }
 
-/** 模拟 AI 一回合行动：结算收入 → 购买 → 布阵 → 返回该回合总战力 */
+/** 付费换牌固定成本 */
+const PAID_REDRAW_COST = 2;
+
+/** 推荐的目标等级（由年份自动爬升） */
+function targetRecruitLevel(roundIdx: number): RecruitLevel {
+  // 大致节奏：
+  // y1 → Lv2, y2 → Lv3, y3 → Lv4, y4 → Lv5, y5 → Lv6, y6 → Lv6
+  if (roundIdx >= 5) return 6;
+  if (roundIdx >= 4) return 5;
+  if (roundIdx >= 3) return 4;
+  if (roundIdx >= 2) return 3;
+  return 2;
+}
+
+/** 评估一张卡"对当前 AI 牌组的战略价值"—— 用于决定要不要换 */
+function cardValue(c: Card, aiLevel: number): number {
+  // 简化：点数本身 + 如果点数接近 aiLevel 解锁上限给加权
+  const unlocked = levelUnlockedValues(aiLevel);
+  let base = c.pointValue;
+  if (!unlocked.has(c.pointValue)) base -= 3; // 超出当前池（理论不会出现）
+  // 稀有度奖励（点数>=11）
+  if (c.pointValue >= 11) base += 2;
+  return base;
+}
+
 export interface AITurnResult {
   ai: AIState;
   deck: Card[];
@@ -85,13 +116,13 @@ export interface AITurnResult {
 }
 
 /**
- * 为 AI 模拟完整一回合：
- *  1) 获得本回合金币/经验（round >= 1 时才执行）
- *  2) 用剩余金币尽量多买卡（循环买直到钱不够）
- *  3) 贪心组阵：
- *     - 挑出 5 张最高点数 + 同阵营优先组合（穷举小规模）
- *     - 若本回合需要 2 队，则前 5 强 → team0，次 5 强 → team1
- *  4) 返回本回合总战力
+ * 为 AI 模拟完整一回合（更像真人玩家）：
+ *  1) 年度收入 + 经验自动升级
+ *  2) 按"目标等级"用金币主动升级主公府（1 金 → +1 威望）
+ *  3) 先把阵上武将收回手牌，评估当前最优 5（或 10）张组合的战力
+ *  4) 反复决策：买卡 / 换牌 / 升级，每一步用预算估值模型选择收益最大者，
+ *     直到没有合理收益或钱包见底
+ *  5) 最终贪心组阵并记录 lastTotalPower
  */
 export function simulateAITurn(
   ai: AIState,
@@ -108,8 +139,10 @@ export function simulateAITurn(
     teams: ai.teams.map((t) => t.slice()),
   };
 
-  // 1) 年度收入 + 经验升级（模拟与 nextRound 同步）
+  // ===== 1) 年度收入 + 自动升级经验 =====
   nextAI.gold += cfg.yearIncome;
+  nextAI.freeRedrawsLeft += cfg.freeRedrawsGain;
+
   let lv = nextAI.recruitLevel;
   let exp = nextAI.recruitExp + cfg.expGain;
   while (lv < 6 && exp >= LEVEL_EXP_REQUIRED[lv]) {
@@ -120,21 +153,21 @@ export function simulateAITurn(
   nextAI.recruitLevel = lv;
   nextAI.recruitExp = exp;
 
-  // 2) 买卡策略：
-  //    - 先把等级拉到能覆盖最大解锁 (可选)
-  //    - 每次花 1 金币升 1 点经验，直到 >=5 等级或金币不足
-  //    - 剩余金币用来买卡，直到需要凑满 2 × 5 = 10 张 或 钱不够
   const teamsNeed = cfg.teamsRequired;
   const slotsTotal = teamsNeed * 5;
 
-  // 先尝试把等级升到目标（根据回合）
-  const targetLevel =
-    nextRoundIdx >= 5 ? 6 : nextRoundIdx >= 3 ? 4 : nextRoundIdx >= 2 ? 3 : 2;
+  // ===== 2) 主动花金币升等级（达到目标前不停） =====
+  const target = targetRecruitLevel(nextRoundIdx);
+  // 为避免把所有钱都花光，升级预算 ≤ 当前金币的 60%
+  const upgradeBudgetCap = Math.floor(nextAI.gold * 0.6);
+  let upgradeSpent = 0;
   while (
-    nextAI.recruitLevel < targetLevel &&
-    nextAI.gold >= 1
+    nextAI.recruitLevel < target &&
+    nextAI.gold >= 1 &&
+    upgradeSpent < upgradeBudgetCap
   ) {
     nextAI.gold -= 1;
+    upgradeSpent += 1;
     nextAI.recruitExp += 1;
     const need = LEVEL_EXP_REQUIRED[nextAI.recruitLevel];
     if (nextAI.recruitExp >= need) {
@@ -147,7 +180,7 @@ export function simulateAITurn(
     }
   }
 
-  // 计算总持有（手牌 + 已上阵）武将数量，先把阵上武将取回手牌做全局优选
+  // ===== 3) 把阵上武将收回手牌（所有卡都参与下一轮决策） =====
   for (let ti = 0; ti < nextAI.teams.length; ti++) {
     for (let si = 0; si < nextAI.teams[ti].length; si++) {
       const c = nextAI.teams[ti][si];
@@ -158,35 +191,158 @@ export function simulateAITurn(
     }
   }
 
-  // 循环买卡，直到足够上阵或金币不够
-  let buyCount = 0; // AI 内部买卡递增计数（不与玩家共享）
-  // 估计需要的卡数量：至少达到 slotsTotal + 1 的余量
-  const desired = slotsTotal + 1;
-  while (nextAI.hand.length < desired) {
-    const price = aiBuyCardPrice(buyCount);
-    if (nextAI.gold < price) break;
-    const r = drawOneUnlockedFromDeck(workingDeck, nextAI.recruitLevel);
-    if (!r.card) break;
-    workingDeck = r.rest;
-    nextAI.hand.push(r.card);
-    nextAI.gold -= price;
-    buyCount += 1;
+  // ===== 4) 决策循环：买/换/升，直到收益不再 =====
+  // 每一步基于"若采取此行动后，当前最优组阵的预估战力提升"做贪心决策
+  const estimateBestPower = (hand: Card[]): number => {
+    // 完整模拟组阵，返回最优总战力
+    if (hand.length === 0) return 0;
+    const teams = greedyPlace(hand, teamsNeed);
+    let total = 0;
+    for (let ti = 0; ti < teamsNeed; ti++) {
+      total += teamPowerOf(teams[ti] ?? []);
+    }
+    return total;
+  };
+
+  // 限制决策最大步数，防止病态循环
+  let steps = 0;
+  const MAX_STEPS = 12;
+
+  while (steps < MAX_STEPS) {
+    steps++;
+    let bestAction: 'buy' | 'redraw' | 'upgrade' | null = null;
+    let bestGain = 0;
+    const currentBest = estimateBestPower(nextAI.hand);
+
+    // 评估：买一张新卡的边际收益（期望值）
+    const nextBuyPrice = aiBuyCardPrice(nextAI.buyCount);
+    const canAffordBuy =
+      nextAI.gold >= nextBuyPrice && nextAI.hand.length < slotsTotal + 2;
+    // 还没有满到上阵数量时强行买；足量时看是否能挤下低价值的
+    if (canAffordBuy) {
+      // 期望收益近似：基于 pointValue 平均的一张新卡替换最差卡
+      const lvUnlocked = Array.from(levelUnlockedValues(nextAI.recruitLevel));
+      const avgValue =
+        lvUnlocked.reduce((s, v) => s + v, 0) / Math.max(1, lvUnlocked.length);
+      const worstExisting =
+        nextAI.hand.length > 0
+          ? Math.min(...nextAI.hand.map((c) => cardValue(c, nextAI.recruitLevel)))
+          : 0;
+      // 若手牌不足直接视为大收益
+      const neededSlots = slotsTotal - nextAI.hand.length;
+      const buyGain =
+        neededSlots > 0
+          ? 50 + avgValue * (teamsNeed >= 2 ? 6 : 3) // 强激励补满阵
+          : Math.max(0, (avgValue - worstExisting) * (teamsNeed >= 2 ? 6 : 3));
+      if (buyGain > bestGain) {
+        bestGain = buyGain;
+        bestAction = 'buy';
+      }
+    }
+
+    // 评估：主动换掉手牌里最差的一张（若免费或值得付费）
+    // 仅在 hand >= slotsTotal 且有明显的"拖累卡"时考虑
+    if (
+      nextAI.hand.length >= slotsTotal &&
+      (nextAI.freeRedrawsLeft > 0 || nextAI.gold >= PAID_REDRAW_COST)
+    ) {
+      const sortedHand = nextAI.hand
+        .map((c, i) => ({ c, i, v: cardValue(c, nextAI.recruitLevel) }))
+        .sort((a, b) => a.v - b.v);
+      const worst = sortedHand[0];
+      if (worst) {
+        const lvUnlocked = Array.from(levelUnlockedValues(nextAI.recruitLevel));
+        const avgValue =
+          lvUnlocked.reduce((s, v) => s + v, 0) /
+          Math.max(1, lvUnlocked.length);
+        // 期望收益：平均值 - 最差值
+        const expectedGain = Math.max(0, (avgValue - worst.v) * 5);
+        const useFree = nextAI.freeRedrawsLeft > 0;
+        const costPenalty = useFree ? 0 : PAID_REDRAW_COST * 4; // 金币惩罚系数
+        const netGain = expectedGain - costPenalty;
+        if (netGain > bestGain) {
+          bestGain = netGain;
+          bestAction = 'redraw';
+        }
+      }
+    }
+
+    // 评估：继续升级（仅在还没到目标等级时且有钱）
+    // 升级几乎总是长线收益，简单给予固定分数
+    if (nextAI.recruitLevel < target && nextAI.gold >= 1) {
+      const need = LEVEL_EXP_REQUIRED[nextAI.recruitLevel] - nextAI.recruitExp;
+      const upgradeGain = need <= nextAI.gold ? 35 : 8; // 一口气能升则更香
+      if (upgradeGain > bestGain) {
+        bestGain = upgradeGain;
+        bestAction = 'upgrade';
+      }
+    }
+
+    if (!bestAction || bestGain <= 0) break;
+
+    // 执行最优动作
+    if (bestAction === 'buy') {
+      const price = aiBuyCardPrice(nextAI.buyCount);
+      const r = drawOneUnlockedFromDeck(workingDeck, nextAI.recruitLevel);
+      if (!r.card) {
+        // 池子空了，没得买 → 退出买卡
+        break;
+      }
+      workingDeck = r.rest;
+      nextAI.hand.push(r.card);
+      nextAI.gold -= price;
+      nextAI.buyCount += 1;
+    } else if (bestAction === 'redraw') {
+      // 把最差的一张换掉
+      const sortedHand = nextAI.hand
+        .map((c, i) => ({ c, i, v: cardValue(c, nextAI.recruitLevel) }))
+        .sort((a, b) => a.v - b.v);
+      const worst = sortedHand[0];
+      if (!worst) break;
+      // 把被换掉的放回 deck，再抽一张
+      const removed = nextAI.hand.splice(worst.i, 1)[0];
+      workingDeck = workingDeck.concat(removed);
+      const r = drawOneUnlockedFromDeck(workingDeck, nextAI.recruitLevel);
+      if (!r.card) {
+        // 抽不到，还原
+        nextAI.hand.splice(worst.i, 0, removed);
+        break;
+      }
+      workingDeck = r.rest;
+      nextAI.hand.push(r.card);
+      // 结算换牌成本
+      if (nextAI.freeRedrawsLeft > 0) nextAI.freeRedrawsLeft -= 1;
+      else nextAI.gold -= PAID_REDRAW_COST;
+
+      // 如果换完战力反而下降，记录但仍保留（随机性的一部分）
+      const afterBest = estimateBestPower(nextAI.hand);
+      if (afterBest < currentBest - 5) {
+        // 非常罕见，忽略回滚
+      }
+    } else if (bestAction === 'upgrade') {
+      nextAI.gold -= 1;
+      nextAI.recruitExp += 1;
+      const need = LEVEL_EXP_REQUIRED[nextAI.recruitLevel];
+      if (nextAI.recruitExp >= need) {
+        nextAI.recruitExp -= need;
+        nextAI.recruitLevel = (nextAI.recruitLevel + 1) as RecruitLevel;
+        if (nextAI.recruitLevel >= 6) nextAI.recruitExp = 0;
+      }
+    }
   }
 
-  // 3) 贪心布阵
+  // ===== 5) 最终贪心组阵 =====
   const teams = greedyPlace(nextAI.hand, teamsNeed);
   nextAI.teams = [
     teams[0] ?? [null, null, null, null, null],
     teams[1] ?? [null, null, null, null, null],
   ];
-  // 把剩余没上阵的留在 hand（AI 不需要管手牌形态，留作展示）
   const placed = new Set<string>();
   for (const t of teams) for (const c of t) if (c) placed.add(c.id);
   nextAI.hand = nextAI.hand.filter((c) => !placed.has(c.id));
 
-  // 4) 计算本回合总战力
-  const power0 = teamPower(nextAI.teams[0]);
-  const power1 = teamsNeed >= 2 ? teamPower(nextAI.teams[1]) : 0;
+  const power0 = teamPowerOf(nextAI.teams[0]);
+  const power1 = teamsNeed >= 2 ? teamPowerOf(nextAI.teams[1]) : 0;
   const total = power0 + power1;
   nextAI.lastTotalPower = total;
 
@@ -194,7 +350,7 @@ export function simulateAITurn(
 }
 
 /** 某队的战力：满 5 张就走 evaluateHand，否则武勇和 × 1 */
-function teamPower(team: (Card | null)[]): number {
+function teamPowerOf(team: (Card | null)[]): number {
   const full = team.filter((c): c is Card => !!c);
   if (full.length === 5) {
     const ev = evaluateHand(full);
@@ -215,7 +371,6 @@ function greedyPlace(
   let pool = hand.slice();
   for (let t = 0; t < teamsNeed; t++) {
     if (pool.length < 5) {
-      // 不够组一队，直接把剩余塞进这队
       const team: (Card | null)[] = [null, null, null, null, null];
       for (let i = 0; i < Math.min(5, pool.length); i++) team[i] = pool[i];
       result.push(team);
@@ -234,10 +389,8 @@ function greedyPlace(
 
 /** 枚举 C(n,5) 选战力最高的 5 张 */
 function pickBestFive(pool: Card[]): Card[] {
-  // 若恰好 5 张直接返回
   if (pool.length <= 5) return pool.slice(0, 5);
 
-  // 剪枝：先按点数降序排 & 只保留前 12 张（太多的低分卡没意义）
   const sorted = pool.slice().sort((a, b) => b.pointValue - a.pointValue);
   const candidates = sorted.slice(0, Math.min(12, sorted.length));
   const n = candidates.length;
@@ -245,7 +398,6 @@ function pickBestFive(pool: Card[]): Card[] {
   let bestPower = -1;
   let bestPick: Card[] = candidates.slice(0, 5);
 
-  // 五重循环枚举 C(n,5)
   for (let a = 0; a < n - 4; a++) {
     for (let b = a + 1; b < n - 3; b++) {
       for (let c = b + 1; c < n - 2; c++) {

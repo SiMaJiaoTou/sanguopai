@@ -39,14 +39,14 @@ export function TalentPickerModal({ round, choices, onPick }: Props) {
               filter: 'drop-shadow(0 0 12px rgba(212,175,55,0.75))',
             }}
           >
-            请 五 择 其 一
+            请 四 择 其 一
           </div>
           <div className="text-[11px] text-amber-200/55 italic mt-2 font-kai">
             · 天赐一经选定，永随本局，影响结算 ·
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 sm:gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
           {choices.map((t, i) => (
             <TalentCard
               key={t.id}

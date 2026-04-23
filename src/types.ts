@@ -6,12 +6,22 @@ export type PointLabel =
   | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10'
   | 'J' | 'Q' | 'K' | 'A' | '2';
 
+/** 神马印记（威力加强模式下由 20 张随机武将持有） */
+export type HorseSeal =
+  | 'dilu'     // 的卢马 · 红印 · 基础武勇额外触发一次
+  | 'jueying'  // 绝影马 · 金印 · 计分 +3 金
+  | 'chitu'    // 赤兔马 · 紫印 · 换掉时 +1 免费换牌
+  | 'bailong'  // 白龙马 · 蓝印 · 保留在手牌时 → 出战阵法倍率 +1
+  | 'dawan';   // 大宛马 · 青印 · 参与计分时 → 阵法倍率 +1
+
 export interface Card {
   id: string;
   faction: Faction;
   pointLabel: PointLabel;
   pointValue: number; // 3~10, J=11, Q=12, K=13, A=14, 2=15
   name: string;
+  /** 神马印记（可选） */
+  horseSeal?: HorseSeal;
 }
 
 /** 点数牌型（乘区 1） */

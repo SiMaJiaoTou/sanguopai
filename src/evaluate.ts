@@ -110,7 +110,12 @@ export function evaluateHand(
 
   // 阵法倍率（天赐可叠加）
   const rankScoreExtra = ctx?.rankBonusExtra[rankType.key] ?? 0;
-  const effectiveRankScore = rankType.score + rankScoreExtra;
+  // 【大宛马】：该队伍中每张参与计分的大宛马，阵法倍率 +1
+  const dawanCount = cards.filter((c) => c.horseSeal === 'dawan').length;
+  // 【白龙马】：留在手牌的数量由外部 ctx 传入
+  const bailongCount = ctx?.bailongInHand ?? 0;
+  const effectiveRankScore =
+    rankType.score + rankScoreExtra + dawanCount + bailongCount;
 
   const suitBonus = flush
     ? SUIT_BONUS.FLUSH.bonus + (ctx?.flushBonusExtra ?? 0)

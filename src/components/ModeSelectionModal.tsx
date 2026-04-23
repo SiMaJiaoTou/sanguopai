@@ -80,7 +80,7 @@ export function ModeSelectionModal({ onChoose }: Props) {
               title="威 力 加 强"
               subtitle="天命所归"
               desc={[
-                '第 2、4 年开局可五选一天赐',
+                '第 2、4 年开局可四选一天赐',
                 '天赐永久生效，层层累加',
                 '强度显著提升，节奏更刺激',
               ]}

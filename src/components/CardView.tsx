@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { useDraggable } from '@dnd-kit/core';
 import type { Card } from '../types';
+import { HORSE_SEALS } from '../horseSeals';
 
 interface Props {
   card: Card;
@@ -89,6 +91,7 @@ export function CardView({
     id: card.id,
     data: { card },
   });
+  const [sealHover, setSealHover] = useState(false);
 
   const portrait = FACTION_PORTRAIT[card.faction] ?? FACTION_PORTRAIT['群'];
 
@@ -324,6 +327,123 @@ export function CardView({
           />
           <span className="relative">{card.name}</span>
         </div>
+
+        {/* ============ 神马印记（SW 弧；有 horseSeal 时才显示，悬浮弹 tooltip） ============ */}
+        {card.horseSeal && (() => {
+          const info = HORSE_SEALS[card.horseSeal];
+          const sealSize = Math.round(28 * scale);
+          return (
+            <div
+              className="absolute"
+              style={{
+                left: `${portraitSize * PERIMETER_INSET}px`,
+                bottom: `${portraitSize * PERIMETER_INSET}px`,
+                transform: 'translate(-50%, 50%)',
+                zIndex: 6,
+              }}
+              onMouseEnter={() => setSealHover(true)}
+              onMouseLeave={() => setSealHover(false)}
+            >
+              {/* 印章本体 */}
+              <div
+                className="relative flex items-center justify-center font-kai font-black"
+                style={{
+                  width: sealSize,
+                  height: sealSize,
+                  fontSize: Math.max(11, Math.round(13 * scale)),
+                  color: '#fef2f2',
+                  letterSpacing: 0,
+                  background: `radial-gradient(circle at 30% 25%, ${info.color}dd 0%, ${info.color}aa 55%, ${info.color}44 100%)`,
+                  border: `2px solid ${info.color}`,
+                  borderRadius: 3,
+                  boxShadow: `0 0 8px ${info.color}aa, inset 0 1px 0 rgba(255,240,200,0.35), inset 0 -1px 2px rgba(0,0,0,0.55), 0 2px 4px rgba(0,0,0,0.85)`,
+                  textShadow: '0 1px 1px rgba(0,0,0,0.95)',
+                  cursor: 'help',
+                  transform: 'rotate(-6deg)',
+                }}
+              >
+                {info.sealChar}
+              </div>
+              {/* tooltip */}
+              {sealHover && (
+                <div
+                  className="absolute pointer-events-none"
+                  style={{
+                    left: '50%',
+                    bottom: `calc(100% + 10px)`,
+                    transform: 'translateX(-50%)',
+                    width: 240,
+                    zIndex: 80,
+                    background:
+                      'linear-gradient(180deg, #2a1810 0%, #1a0f08 100%)',
+                    border: `1.5px solid ${info.color}`,
+                    borderRadius: 6,
+                    boxShadow: `0 0 16px ${info.color}88, 0 8px 18px rgba(0,0,0,0.9)`,
+                    padding: '10px 12px',
+                    fontFamily: 'STKaiti, serif',
+                  }}
+                >
+                  {/* 顶部 */}
+                  <div className="flex items-center gap-2 mb-1">
+                    <span
+                      className="flex items-center justify-center font-black text-[14px]"
+                      style={{
+                        width: 24,
+                        height: 24,
+                        color: '#fff',
+                        background: info.color,
+                        borderRadius: 3,
+                        border: '1px solid rgba(0,0,0,0.5)',
+                        textShadow: '0 1px 1px rgba(0,0,0,0.8)',
+                      }}
+                    >
+                      {info.sealChar}
+                    </span>
+                    <span
+                      className="text-[15px] font-black tracking-widest"
+                      style={{
+                        background: `linear-gradient(180deg, #fff5cc 0%, ${info.color} 75%, #4a1010 100%)`,
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                      }}
+                    >
+                      {info.name}
+                    </span>
+                  </div>
+                  <div
+                    className="text-[10px] tracking-widest font-black mb-2"
+                    style={{ color: info.color }}
+                  >
+                    {info.sealName}
+                  </div>
+                  <div className="text-[11.5px] text-amber-100/90 leading-snug mb-2">
+                    {info.effect}
+                  </div>
+                  <div className="text-[10px] text-amber-200/70 leading-snug italic">
+                    <span className="text-amber-300 not-italic">触发：</span>
+                    {info.trigger}
+                  </div>
+                  <div className="text-[10.5px] text-amber-100/70 leading-snug mt-1.5 border-t border-amber-900/40 pt-1.5">
+                    {info.detail}
+                  </div>
+                  {/* 小三角 */}
+                  <div
+                    className="absolute left-1/2"
+                    style={{
+                      bottom: -6,
+                      transform: 'translateX(-50%)',
+                      width: 0,
+                      height: 0,
+                      borderLeft: '6px solid transparent',
+                      borderRight: '6px solid transparent',
+                      borderTop: `6px solid ${info.color}`,
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </motion.div>
   );

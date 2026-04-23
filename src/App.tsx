@@ -79,10 +79,16 @@ export default function App() {
   const cfg = ROUND_CONFIGS[state.round];
   const teamsRequired = cfg.teamsRequired;
 
+  // 【白龙马】：手牌中的数量 → 结算时阵法倍率 +1（传给 ctx）
+  const bailongInHand = useMemo(
+    () => state.hand.filter((c) => c.horseSeal === 'bailong').length,
+    [state.hand],
+  );
+
   // 天赐被动效果上下文
   const evalCtx = useMemo(
-    () => buildEvalContext(state.talents, { gold: state.gold }),
-    [state.talents, state.gold],
+    () => buildEvalContext(state.talents, { gold: state.gold, bailongInHand }),
+    [state.talents, state.gold, bailongInHand],
   );
 
   // 每队评估（仅满 5 员才成阵；否则按"武勇和 × 1 倍率"累计）
@@ -232,15 +238,25 @@ export default function App() {
 
   const activeCard = activeId ? findCardById(state.hand, state.teams, activeId) : null;
 
-  const buildSnapshot = (): PowerSnapshot => ({
-    round: state.round,
-    team0Power: team0PowerFinal,
-    team1Power: teamsRequired >= 2 ? team1PowerFinal : 0,
-    totalPower,
-    gold: state.gold,
-    recruitLevel: state.recruitLevel,
-    anyFlush,
-  });
+  const buildSnapshot = (): PowerSnapshot => {
+    // 计算上阵【绝影马】数量（仅计数在场上的）
+    let jueyingOnBoard = 0;
+    for (const t of state.teams) {
+      const need = teamsRequired >= 2 ? 2 : 1;
+      for (const c of t) if (c?.horseSeal === 'jueying') jueyingOnBoard++;
+      if (need === 1) break; // 仅算 team0
+    }
+    return {
+      round: state.round,
+      team0Power: team0PowerFinal,
+      team1Power: teamsRequired >= 2 ? team1PowerFinal : 0,
+      totalPower,
+      gold: state.gold,
+      recruitLevel: state.recruitLevel,
+      anyFlush,
+      jueyingOnBoard,
+    };
+  };
 
   const handleNext = () => {
     // 放宽规则：未上满 5 员不再阻塞下一年；空位默认 0 武勇、倍率默认 1
@@ -481,7 +497,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-      {/* 天赐五选一弹窗 */}
+      {/* 天赐四选一弹窗 */}
       <AnimatePresence>
         {state.pendingTalentChoices && state.pendingTalentChoices.length > 0 && (
           <TalentPickerModal
