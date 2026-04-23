@@ -476,6 +476,8 @@ export default function App() {
             onRestart={handleRestart}
             powerHistory={state.powerHistory}
             currentRound={state.round}
+            ais={state.ais}
+            playerEliminatedAtRound={state.playerEliminatedAtRound}
           />
         )}
       </AnimatePresence>
