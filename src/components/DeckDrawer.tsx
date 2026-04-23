@@ -71,18 +71,24 @@ export function DeckDrawer({ deck }: Props) {
   return (
     <>
       {/* 触发按钮 —— 固定在右下角（避开 GM 令牌按钮），支持 hover 与 click */}
-      <button
-        onMouseEnter={() => setOpen(true)}
-        onClick={() => setOpen(true)}
-        className="fixed bottom-5 right-20 z-30 btn-seal btn-seal-gold px-4 py-2.5 font-kai tracking-[0.25em] text-sm"
-        title="查看剩余牌库（悬浮或点击）"
+      {/* 注意：外层 div 负责 fixed 定位；内层 btn-seal 的 position:relative 不能放在 fixed 元素上 */}
+      <div
+        className="fixed z-30"
+        style={{ bottom: 20, right: 80 }}
       >
-        <span className="mr-1">📜</span>
-        <span className="text-[13px]">查看牌库</span>
-        <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-black/40 text-gold-grad tabular-nums font-black">
-          {totalRemaining}
-        </span>
-      </button>
+        <button
+          onMouseEnter={() => setOpen(true)}
+          onClick={() => setOpen(true)}
+          className="btn-seal btn-seal-gold px-4 py-2.5 font-kai tracking-[0.25em] text-sm"
+          title="查看剩余牌库（悬浮或点击）"
+        >
+          <span className="mr-1">📜</span>
+          <span className="text-[13px]">查看牌库</span>
+          <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] bg-black/40 text-gold-grad tabular-nums font-black">
+            {totalRemaining}
+          </span>
+        </button>
+      </div>
 
       <AnimatePresence>
         {open && (
