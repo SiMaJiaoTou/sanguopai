@@ -297,6 +297,14 @@ export default function App() {
                 </button>
 
                 <button
+                  onClick={state.recallAll}
+                  className="btn-wood text-xs px-3 py-2"
+                  title="把已上阵的所有武将撤回待命"
+                >
+                  一键下阵
+                </button>
+
+                <button
                   onClick={handleRestart}
                   className="btn-wood text-xs px-3 py-2"
                 >

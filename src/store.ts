@@ -50,6 +50,7 @@ export interface GameState {
   nextRound: (snapshot: PowerSnapshot) => void;
   settleFinal: (snapshot: PowerSnapshot) => void;
   autoPlace: () => void;
+  recallAll: () => void;
   clearMessage: () => void;
 
   // GM 调试接口
@@ -339,6 +340,28 @@ export const useGameStore = create<GameState>((set, get) => ({
       }
     }
     set({ hand, teams });
+  },
+
+  recallAll: () => {
+    const state = get();
+    const hand = state.hand.slice();
+    const teams = state.teams.map((t) => t.slice());
+    let moved = 0;
+    for (let ti = 0; ti < teams.length; ti++) {
+      for (let si = 0; si < teams[ti].length; si++) {
+        const c = teams[ti][si];
+        if (c) {
+          hand.push(c);
+          teams[ti][si] = null;
+          moved++;
+        }
+      }
+    }
+    if (moved === 0) {
+      set({ lastMessage: '阵上尚无武将可撤' });
+      return;
+    }
+    set({ hand, teams, lastMessage: `已撤回 ${moved} 员武将` });
   },
 
   clearMessage: () => set({ lastMessage: null }),
