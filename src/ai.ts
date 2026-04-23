@@ -156,6 +156,13 @@ export function simulateAITurn(
   const teamsNeed = cfg.teamsRequired;
   const slotsTotal = teamsNeed * 5;
 
+  // AI 手牌规模上限（按阶段限制，强迫早期囤钱升本）：
+  //   第 1 ~ 2 年（进入 round 1 / 2）：最多 7 张手牌，7 张之后只升本
+  //   第 3 年以后（进入 round 3+）：最多 11 张手牌
+  const handCapByPhase = nextRoundIdx <= 2 ? 7 : 11;
+  // 若本年需要的上阵槽位 > 上限（多队列时），至少保证能上满阵（+2 余量）
+  const handCap = Math.max(handCapByPhase, slotsTotal + 2);
+
   // ===== 2) 主动花金币升等级（达到目标前不停） =====
   const target = targetRecruitLevel(nextRoundIdx);
   // 为避免把所有钱都花光，升级预算 ≤ 当前金币的 60%
@@ -206,7 +213,7 @@ export function simulateAITurn(
 
   // 限制决策最大步数，防止病态循环
   let steps = 0;
-  const MAX_STEPS = 12;
+  const MAX_STEPS = 40;
 
   while (steps < MAX_STEPS) {
     steps++;
@@ -216,8 +223,9 @@ export function simulateAITurn(
 
     // 评估：买一张新卡的边际收益（期望值）
     const nextBuyPrice = aiBuyCardPrice(nextAI.buyCount);
+    // 按阶段限制手牌上限：达到上限后完全不买（强迫余钱升本）
     const canAffordBuy =
-      nextAI.gold >= nextBuyPrice && nextAI.hand.length < slotsTotal + 2;
+      nextAI.gold >= nextBuyPrice && nextAI.hand.length < handCap;
     // 还没有满到上阵数量时强行买；足量时看是否能挤下低价值的
     if (canAffordBuy) {
       // 期望收益近似：基于 pointValue 平均的一张新卡替换最差卡
@@ -267,11 +275,20 @@ export function simulateAITurn(
       }
     }
 
-    // 评估：继续升级（仅在还没到目标等级时且有钱）
-    // 升级几乎总是长线收益，简单给予固定分数
-    if (nextAI.recruitLevel < target && nextAI.gold >= 1) {
+    // 评估：继续升级
+    // - 未达目标等级：优先升级
+    // - 已达目标但 hand 已满（达到 handCap）：继续把余钱投入升本至 Lv.6
+    const handFullNoBuy = nextAI.hand.length >= handCap;
+    const canUpgradeToTarget = nextAI.recruitLevel < target;
+    const canUpgradePastTarget =
+      !canUpgradeToTarget &&
+      handFullNoBuy &&
+      nextAI.recruitLevel < 6;
+    if ((canUpgradeToTarget || canUpgradePastTarget) && nextAI.gold >= 1) {
       const need = LEVEL_EXP_REQUIRED[nextAI.recruitLevel] - nextAI.recruitExp;
-      const upgradeGain = need <= nextAI.gold ? 35 : 8; // 一口气能升则更香
+      // 手牌已满时强烈激励升本（替代买卡消费出口），给更高分数
+      const base = need <= nextAI.gold ? 35 : 8;
+      const upgradeGain = handFullNoBuy ? base + 20 : base;
       if (upgradeGain > bestGain) {
         bestGain = upgradeGain;
         bestAction = 'upgrade';
