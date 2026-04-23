@@ -346,6 +346,7 @@ function DuelRow({
           shake={shakeA}
           phase={phase}
           side="left"
+          isPlayer={d.aId === 'player'}
         />
       </motion.div>
 
@@ -406,6 +407,7 @@ function DuelRow({
           shake={shakeB}
           phase={phase}
           side="right"
+          isPlayer={d.bId === 'player'}
         />
       </motion.div>
     </div>
@@ -428,6 +430,7 @@ function DuelAvatar({
   shake,
   phase,
   side,
+  isPlayer,
 }: {
   name: string;
   power: number;
@@ -440,6 +443,7 @@ function DuelAvatar({
   shake: boolean;
   phase: Phase;
   side: 'left' | 'right';
+  isPlayer: boolean;
 }) {
   const hpWidth = (hp: number) =>
     `${Math.max(0, Math.min(100, (hp / INITIAL_HP) * 100))}%`;
@@ -457,6 +461,26 @@ function DuelAvatar({
       transition={{ duration: 0.6 }}
       className="relative flex flex-col items-center"
     >
+      {/* 主公脉动金环（仅玩家） */}
+      {isPlayer && (
+        <motion.div
+          animate={{
+            opacity: [0.55, 1, 0.55],
+            scale: [1, 1.06, 1],
+          }}
+          transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+          className="absolute pointer-events-none"
+          style={{
+            inset: -10,
+            borderRadius: 14,
+            background:
+              'radial-gradient(ellipse at center, rgba(255,240,170,0.45) 0%, rgba(255,180,60,0.35) 45%, transparent 80%)',
+            filter: 'blur(10px)',
+            zIndex: -1,
+          }}
+        />
+      )}
+
       {/* 立牌 · 紧凑版 */}
       <div
         className="relative"
@@ -486,27 +510,43 @@ function DuelAvatar({
           />
         )}
 
-        {/* 外金边底盘 */}
+        {/* 外金边底盘（主公加粗 + 更亮） */}
         <div
           className="absolute inset-0 rounded-lg"
           style={{
-            background:
-              'linear-gradient(180deg, #d4af37 0%, #8b6914 60%, #3a2408 100%)',
-            boxShadow:
-              '0 4px 10px rgba(0,0,0,0.85), inset 0 2px 0 rgba(255,240,200,0.5), inset 0 -2px 4px rgba(0,0,0,0.65)',
+            background: isPlayer
+              ? 'linear-gradient(180deg, #fff5cc 0%, #f7d57a 25%, #d4af37 55%, #6b4a10 100%)'
+              : 'linear-gradient(180deg, #d4af37 0%, #8b6914 60%, #3a2408 100%)',
+            boxShadow: isPlayer
+              ? '0 0 18px rgba(255,220,120,0.85), 0 4px 12px rgba(0,0,0,0.85), inset 0 2px 0 rgba(255,255,230,0.8), inset 0 -2px 4px rgba(0,0,0,0.65)'
+              : '0 4px 10px rgba(0,0,0,0.85), inset 0 2px 0 rgba(255,240,200,0.5), inset 0 -2px 4px rgba(0,0,0,0.65)',
           }}
         />
         {/* 阵营色底 */}
         <div
-          className="absolute inset-[3px] rounded"
+          className={isPlayer ? 'absolute inset-[4px] rounded' : 'absolute inset-[3px] rounded'}
           style={{
             background:
-              won && (phase === 'damage' || phase === 'linger')
-                ? 'linear-gradient(180deg, #5a3a10 0%, #2a1810 55%, #1a0f08 100%)'
-                : 'linear-gradient(180deg, #3a2418 0%, #1a0f08 100%)',
+              isPlayer
+                ? 'linear-gradient(180deg, #4a2818 0%, #2a1410 55%, #1a0a04 100%)'
+                : won && (phase === 'damage' || phase === 'linger')
+                  ? 'linear-gradient(180deg, #5a3a10 0%, #2a1810 55%, #1a0f08 100%)'
+                  : 'linear-gradient(180deg, #3a2418 0%, #1a0f08 100%)',
             boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.7)',
           }}
         />
+        {/* 主公 · 内金框（双层边） */}
+        {isPlayer && (
+          <div
+            className="absolute pointer-events-none rounded"
+            style={{
+              inset: 6,
+              border: '1px solid rgba(255,230,150,0.9)',
+              boxShadow:
+                'inset 0 0 10px rgba(255,220,120,0.4), 0 0 6px rgba(212,175,55,0.5)',
+            }}
+          />
+        )}
 
         {/* 红闪（受击） */}
         <AnimatePresence>
@@ -564,14 +604,28 @@ function DuelAvatar({
             {/* 名字 */}
             <div
               className="font-kai font-black whitespace-nowrap truncate"
-              style={{
-                fontSize: 16,
-                color: '#fef3c7',
-                textShadow:
-                  '0 0 6px rgba(212,175,55,0.55), 0 1px 2px rgba(0,0,0,0.95)',
-                letterSpacing: '0.15em',
-                lineHeight: 1,
-              }}
+              style={
+                isPlayer
+                  ? {
+                      fontSize: 16,
+                      letterSpacing: '0.15em',
+                      lineHeight: 1,
+                      background:
+                        'linear-gradient(180deg, #fff5cc 0%, #f7d57a 40%, #d4af37 75%, #6b4a10 100%)',
+                      WebkitBackgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      filter:
+                        'drop-shadow(0 0 6px rgba(255,220,120,0.85)) drop-shadow(0 1px 2px rgba(0,0,0,0.95))',
+                    }
+                  : {
+                      fontSize: 16,
+                      color: '#fef3c7',
+                      textShadow:
+                        '0 0 6px rgba(212,175,55,0.55), 0 1px 2px rgba(0,0,0,0.95)',
+                      letterSpacing: '0.15em',
+                      lineHeight: 1,
+                    }
+              }
             >
               {name}
             </div>
@@ -644,6 +698,72 @@ function DuelAvatar({
             </div>
           </div>
         </div>
+
+        {/* 主公标识印（左上角，常驻，仅玩家） */}
+        {isPlayer && (
+          <motion.div
+            initial={{ scale: 1.8, opacity: 0, rotate: -18 }}
+            animate={{ scale: 1, opacity: 1, rotate: -8 }}
+            transition={{ type: 'spring', stiffness: 240, damping: 14 }}
+            className="absolute flex items-center justify-center font-kai font-black"
+            style={{
+              top: -10,
+              left: -10,
+              width: 38,
+              height: 38,
+              fontSize: 14,
+              letterSpacing: 0,
+              color: '#fef3c7',
+              background:
+                'radial-gradient(circle at 30% 25%, #fff5cc 0%, #f7d57a 30%, #d4af37 65%, #6b4a10 100%)',
+              border: '2px solid #2a1608',
+              borderRadius: '50%',
+              boxShadow:
+                '0 0 12px rgba(255,220,120,0.85), inset 0 1px 0 rgba(255,255,230,0.7), inset 0 -2px 3px rgba(80,50,10,0.55), 0 3px 6px rgba(0,0,0,0.85)',
+              textShadow: '0 1px 1px rgba(0,0,0,0.75)',
+              zIndex: 7,
+            }}
+          >
+            <span
+              style={{
+                background:
+                  'linear-gradient(180deg, #5a1a08 0%, #2a0808 100%)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                fontWeight: 900,
+              }}
+            >
+              主
+            </span>
+          </motion.div>
+        )}
+
+        {/* 主公头顶旗标："主 公"（仅玩家） */}
+        {isPlayer && (
+          <motion.div
+            initial={{ y: 6, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.1 }}
+            className="absolute left-1/2 -translate-x-1/2 font-kai font-black whitespace-nowrap"
+            style={{
+              top: -22,
+              padding: '2px 10px',
+              fontSize: 10,
+              letterSpacing: '0.5em',
+              color: '#2a1608',
+              background:
+                'linear-gradient(180deg, #fff5cc 0%, #f7d57a 40%, #d4af37 75%, #8b6914 100%)',
+              border: '1px solid #2a1608',
+              borderRadius: 2,
+              textShadow: '0 1px 1px rgba(255,255,255,0.55)',
+              boxShadow:
+                '0 0 10px rgba(255,220,120,0.75), inset 0 1px 0 rgba(255,255,230,0.75), inset 0 -2px 3px rgba(80,50,10,0.55), 0 3px 6px rgba(0,0,0,0.85)',
+              zIndex: 7,
+            }}
+          >
+            主 公
+          </motion.div>
+        )}
 
         {/* 胜者印（紧贴右上） */}
         <AnimatePresence>
