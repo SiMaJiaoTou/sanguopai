@@ -116,14 +116,15 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
   },
 
   _applyWelcome: ({ yourId, isHost, room, players }) =>
-    set({
+    set((s) => ({
       roomCode: room,
       myPeerId: yourId,
       isHost,
       peers: players,
-      screen: 'room',
+      // 如果已经在 inGame（resume 场景），保持当前屏幕不跳回 room
+      screen: s.screen === 'inGame' ? s.screen : 'room',
       lastError: null,
-    }),
+    })),
 
   _peerJoined: (peer) =>
     set((s) => ({
@@ -172,10 +173,15 @@ export const useLobbyStore = create<LobbyState>((set, get) => ({
 network.subscribe({
   onStatusChange: (s) => useLobbyStore.getState()._setStatus(s),
   onWelcome: (w) => useLobbyStore.getState()._applyWelcome(w),
+  // resume 后身份完全一样，走 applyWelcome 的同一逻辑即可刷新 peers 列表
+  onResumed: (w) => useLobbyStore.getState()._applyWelcome(w),
   onPeerJoined: (p) => useLobbyStore.getState()._peerJoined(p),
   onPeerLeft: (id, newHost) =>
     useLobbyStore.getState()._peerLeft(id, newHost),
   onPromoted: () => useLobbyStore.getState()._promoted(),
+  // 宽限期内的 disconnected/resumed 只影响游戏内 HUD（由 HostEngine 处理
+  // 后通过 ClientView.players[].connected 传给 UI）；lobby peers 列表
+  // 本身不改变，所以这里不处理。
   onError: (code, msg) =>
     useLobbyStore.getState()._setError(`${code}: ${msg}`),
 });

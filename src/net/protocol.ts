@@ -56,6 +56,8 @@ export type HostEvent =
 export type ClientMsg =
   | { t: 'create'; name: string }
   | { t: 'join'; room: string; name: string }
+  // 掉线后带 token 接回原 peerId / 原座位
+  | { t: 'resume'; sessionToken: string }
   | { t: 'leave' }
   | { t: 'intent'; action: GameAction }
   | { t: 'hostEvent'; target?: string; payload: HostEvent } // 仅 host 发
@@ -66,11 +68,25 @@ export type ServerMsg =
   | {
       t: 'welcome';
       yourId: string;
+      /** 用于断线重连的会话凭证，客户端存 sessionStorage */
+      sessionToken: string;
+      isHost: boolean;
+      room: string;
+      players: PeerInfo[];
+    }
+  // resume 成功：server 重新确认身份，客户端 flush 操作队列
+  | {
+      t: 'welcomeResume';
+      yourId: string;
       isHost: boolean;
       room: string;
       players: PeerInfo[];
     }
   | { t: 'peerJoined'; peer: PeerInfo }
+  // 某 peer 掉线进入宽限期（尚未真正 cleanup，可能很快 resume 回来）
+  | { t: 'peerDisconnected'; peerId: string }
+  // 某 peer 在宽限期内成功 resume，恢复在线状态
+  | { t: 'peerResumed'; peerId: string }
   | { t: 'peerLeft'; peerId: string; newHostId?: string | null }
   | { t: 'promoted' }               // 你被升为 host
   | { t: 'intent'; from: string; action: GameAction } // 仅 host 收

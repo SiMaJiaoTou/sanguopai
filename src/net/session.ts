@@ -3,7 +3,14 @@
 // 一处入口：根据 lobbyStore 的 isHost/screen 决定启停 HostEngine / ClientSession
 //  - 进入 inGame → 启动
 //  - 返回 lobby / leaveRoom → 关闭
-// 同时把 GameAction dispatch 包装好给 UI 层调用
+// 同时把 GameAction dispatch 包装好给 UI 层调用。
+//
+// 韧性策略（Tier 1）：
+//   · socket 短暂闪断 → Network 自动重连 + 带 sessionToken resume
+//     成功后 pendingQueue 自动 flush，业务无感知
+//   · 30s 宽限期超时 → server 发 SESSION_EXPIRED 或 relay cleanup
+//     此时才 abortSession 退主菜单
+//   · host 掉线超过宽限期 → 第 2 进房者被真正升为 host，并广播 kick
 
 import { HostEngine } from './HostEngine';
 import { ClientSession } from './ClientSession';
@@ -27,7 +34,7 @@ function abortSession(errorMsg: string) {
 
 // ---- 永远订阅 state/kick hostEvent，即便还没"正式 startSession" ----
 // 原因：host 可能在客户端还没进入 inGame 屏幕时就发 state 广播；
-// 提前订阅可确保 view 不丢包。只要当前玩家不是 host，就把 state 写进 roomStore。
+// 提前订阅可确保 view 不丢包。
 network.subscribe({
   onHostEvent: (payload) => {
     if (payload.t === 'state' && !hostEngine) {
@@ -39,7 +46,6 @@ network.subscribe({
       }
     }
     if (payload.t === 'gameStart') {
-      // 由 App.tsx 负责设 lobbyScreen；这里顺带确保 clientSession 启动
       const lobby = useLobbyStore.getState();
       if (!lobby.isHost && !clientSession && !hostEngine) {
         startSession();
@@ -50,54 +56,43 @@ network.subscribe({
       abortSession(`被请离房间：${payload.reason}`);
     }
   },
-  // host 断线导致中继把自己升为新 host —— 权威状态无法从 privacy-masked
-  // 的 ClientView 完整重建，因此直接终止本局。
-  // 关键：我们现在有了 host 身份，先用一次广播 kick 把所有其他客户端一并请走，
-  // 避免"自己 leaveRoom → relay 再升别人 → 别人又走 → 级联提升" 这种雪崩。
-  // （之前观察到 8 人房里 6 个人被依次升成 host 然后秒退）
+  // 被升为新 host —— 表示原 host 超过宽限期没回来（或主动离开）
+  // 先广播 kick 把其他人也请走（原因：ClientView 已 privacy-mask，
+  // 无法重建完整 RoomState，继续玩会状态分叉），再自己 abort。
   onPromoted: () => {
-    console.warn('[sess] promoted to host after host disconnect — notifying all and aborting');
-    // 广播 kick 给其他所有 client（target 不填 = 广播给非 host 的所有人）
+    console.warn('[sess] promoted to host — ending game for all');
     try {
       network.sendHostEvent({
         t: 'kick',
-        reason: '主公已断线 · 本局已中断',
+        reason: '主公已离开 · 本局结束',
       });
     } catch (e) {
       console.warn('[sess] failed to broadcast end-game kick', e);
     }
-    abortSession('主公已断线 · 本局已中断');
+    abortSession('主公已离开 · 本局结束');
   },
-  // 别的玩家离开；不在这里做 abort 决定。
-  // 原 host 离开时，relay 会把"第 2 进房者"升为新 host，并给他们发 'promoted'。
-  // 那位会在 onPromoted 里先 broadcast kick 给所有 client，再自己 abort。
-  // 如果在这里也 abort 会和 onPromoted 广播的 kick 形成竞态（早走的那批人
-  // 关了 socket，又让 relay 继续提升下一个人，引发级联）。
-  // 游戏中连接被打断的兜底：
-  //  · 断网后自动重连成功，但中继已重启导致房间消失 → ROOM_NOT_FOUND
-  //  · 中继完全连不上，重连 15 次仍失败 → unreachable
+  // 中继宽限期超时 → 会话已无法恢复
   onError: (code) => {
     if (!hostEngine && !clientSession) return;
-    if (code === 'ROOM_NOT_FOUND') {
-      console.warn('[sess] ROOM_NOT_FOUND mid-session — aborting');
+    if (code === 'SESSION_EXPIRED') {
+      console.warn('[sess] SESSION_EXPIRED — session unrecoverable');
+      abortSession('掉线时间过长 · 会话已过期 · 本局中断');
+    } else if (code === 'ROOM_NOT_FOUND') {
+      console.warn('[sess] ROOM_NOT_FOUND — relay restarted');
       abortSession('中军重启 · 房间已失散 · 本局中断');
     } else if (code === 'RELAY_UNREACHABLE') {
-      console.warn('[sess] RELAY_UNREACHABLE mid-session — aborting');
+      console.warn('[sess] RELAY_UNREACHABLE — giving up');
       abortSession('与中军失联 · 本局中断');
     }
   },
-  // 任何端（host 或 client）一旦进入 reconnecting / unreachable，
-  // 都视为本局中断：
-  //  · host 重连后 relay 已不认识我们（新 peerId），继续发 intent 无效
-  //  · client 重连后若成功 rejoin 也是新 peerId，无法接上原座位
-  // 简单稳妥做法：掉线立即退主菜单，提示玩家"重新开房"
+  // 注：闪断（reconnecting 状态）不再立即 abort，Network 会带 sessionToken
+  // 自动 resume。如果 30s 宽限期内没恢复，server 会返回 SESSION_EXPIRED，
+  // 交给上面的 onError 处理。
+  // 只有"彻底不可达"的终态会在这里触发 abort。
   onStatusChange: (status) => {
     if (!hostEngine && !clientSession) return;
-    if (status === 'reconnecting') {
-      console.warn('[sess] socket reconnecting during active session — aborting');
-      abortSession('网络不稳 · 本局中断');
-    } else if (status === 'unreachable') {
-      console.warn('[sess] socket unreachable during active session — aborting');
+    if (status === 'unreachable') {
+      console.warn('[sess] unreachable during active session — aborting');
       abortSession('与中军失联 · 本局中断');
     }
   },
@@ -120,12 +115,9 @@ export function startSession() {
   if (!lobby.roomCode || !lobby.myPeerId) return;
   const wantHost = lobby.isHost;
 
-  // 角色匹配 → 已在跑，忽略
   if (wantHost && hostEngine) return;
   if (!wantHost && clientSession) return;
 
-  // 角色不匹配（例如 host 迁移后重建）→ 关掉错误角色的引擎，但不清 view，
-  // 避免把前序广播过来的 ClientView 冲掉
   if (hostEngine) {
     hostEngine.stop();
     hostEngine = null;

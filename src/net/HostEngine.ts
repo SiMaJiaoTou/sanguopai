@@ -67,22 +67,47 @@ export class HostEngine {
         this.room = joinPlayer(this.room, peer.id, peer.name);
         this.broadcast();
       },
+      // peer 进入 30s 宽限期（socket 关闭但 server 还保留 peer 记录）
+      // 只标 connected=false，不 AI 托管，给断线者机会 resume 接回
+      onPeerDisconnected: (peerId) => {
+        const idx = this.room.players.findIndex((p) => p.peerId === peerId);
+        if (idx < 0) return;
+        console.info(`[host] peer entering grace period: ${peerId}`);
+        const players = this.room.players.slice();
+        players[idx] = { ...players[idx], connected: false };
+        this.room = { ...this.room, players };
+        // 不广播给自己不发的座位 → broadcast 里会跳过 connected=false 的
+        // peer，但其他 client 仍然需要知道这人"重连中"
+        this.broadcast();
+      },
+      // peer 在宽限期内 resume 成功 → 恢复 connected=true
+      onPeerResumed: (peerId) => {
+        const idx = this.room.players.findIndex((p) => p.peerId === peerId);
+        if (idx < 0) return;
+        console.info(`[host] peer resumed: ${peerId}`);
+        const players = this.room.players.slice();
+        players[idx] = { ...players[idx], connected: true };
+        this.room = { ...this.room, players };
+        // resume 成功后立即重发一次完整 state，让重连者拿到最新快照
+        this.broadcast();
+      },
       onPeerLeft: (peerId) => {
+        // 到这里一定是真正离开了（要么主动 leave，要么宽限期超时）。
         // 大厅阶段 → 清空座位（hardLeave=true）
         // 游戏中 → AI 托管，保留已发牌 / 金币 / 等级（hardLeave=false）
-        // 否则座位变成空手人类，allReady 永远不成立，全房卡死
         const hardLeave = this.room.phase === 'lobby';
         this.room = markPeerGone(this.room, peerId, hardLeave);
-        // 断线后也要复查阶段推进：
-        //  · prep 且所有活着的人类都 ready → advanceRound
-        //  · talent 且被托管的玩家已标 ready=true → maybeExitTalent
         this.maybeAdvance();
         this.broadcast();
       },
       onIntent: (from, action) => this.handleIntent(from, action),
-      // 注：host socket 一旦 reconnecting / unreachable，session.ts 的
-      // onStatusChange 会统一调 abortSession（stopSession + leaveRoom +
-      // setError），本引擎也会被 stop() 清理。所以这里不需要额外处理。
+      // host 自己 socket 成功 resume 回来后，server 会把旧 peerId 保留。
+      // 但中间 state 可能被 dispatchSelf 改过却没广播出去，所以一恢复
+      // in_room 就立即 rebroadcast 一次，保证 client 视图是最新的。
+      onResumed: () => {
+        console.info('[host] my socket resumed — rebroadcasting state');
+        this.broadcast();
+      },
     });
     this.unsubs.push(off);
     this.broadcast();
