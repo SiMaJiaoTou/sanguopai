@@ -80,6 +80,9 @@ export class HostEngine {
         this.broadcast();
       },
       onIntent: (from, action) => this.handleIntent(from, action),
+      // 注：host socket 一旦 reconnecting / unreachable，session.ts 的
+      // onStatusChange 会统一调 abortSession（stopSession + leaveRoom +
+      // setError），本引擎也会被 stop() 清理。所以这里不需要额外处理。
     });
     this.unsubs.push(off);
     this.broadcast();

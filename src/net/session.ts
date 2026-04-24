@@ -16,6 +16,15 @@ import type { ClientView } from './roomTypes';
 let hostEngine: HostEngine | null = null;
 let clientSession: ClientSession | null = null;
 
+/** 中断当前联机会话：停引擎 + 关 WS + 回主菜单 + 显示错误条 */
+function abortSession(errorMsg: string) {
+  stopSession();
+  const lobby = useLobbyStore.getState();
+  lobby.leaveRoom();
+  // leaveRoom 会把 lastError 清空，所以写 error 放在其后
+  useLobbyStore.getState()._setError(errorMsg);
+}
+
 // ---- 永远订阅 state/kick hostEvent，即便还没"正式 startSession" ----
 // 原因：host 可能在客户端还没进入 inGame 屏幕时就发 state 广播；
 // 提前订阅可确保 view 不丢包。只要当前玩家不是 host，就把 state 写进 roomStore。
@@ -37,38 +46,51 @@ network.subscribe({
       }
     }
     if (payload.t === 'kick') {
-      // host 拒绝我们留在房间（通常是迟到）→ 退回主菜单，显示原因
       console.warn(`[sess] kicked by host: ${payload.reason}`);
-      stopSession();
-      const lobby = useLobbyStore.getState();
-      lobby.leaveRoom();
-      // leaveRoom 会把 lastError 清空，所以放在其后
-      useLobbyStore.getState()._setError(`被请离房间：${payload.reason}`);
+      abortSession(`被请离房间：${payload.reason}`);
     }
   },
   // host 断线导致中继把自己升为新 host —— 权威状态无法从 privacy-masked
-  // 的 ClientView 完整重建（其他玩家手牌已被裁剪成 []），因此直接终止本局，
-  // 把所有人退回主菜单，避免玩家看到"游戏挂着但谁都动不了"的假死状态。
+  // 的 ClientView 完整重建，因此直接终止本局，把所有人退回主菜单。
   onPromoted: () => {
     console.warn('[sess] promoted to host after host disconnect — aborting session');
-    stopSession();
-    const lobby = useLobbyStore.getState();
-    lobby.leaveRoom();
-    useLobbyStore.getState()._setError('主公已断线 · 本局已中断');
+    abortSession('主公已断线 · 本局已中断');
   },
   // 别的玩家离开；如果带着 newHostId（意味着离开的是原 host），其他
   // 非被提升的 client 也要同步中断（和 onPromoted 里的逻辑对称）
   onPeerLeft: (_peerId, newHostId) => {
-    if (newHostId && !hostEngine) {
-      const lobby = useLobbyStore.getState();
-      // 被提升为 host 的玩家会走 onPromoted 分支；我们这里只处理"原 host 走了
-      // 但自己不是接任者"的情况
-      if (newHostId !== lobby.myPeerId) {
-        console.warn('[sess] original host left — aborting session');
-        stopSession();
-        lobby.leaveRoom();
-        useLobbyStore.getState()._setError('主公已断线 · 本局已中断');
-      }
+    if (!newHostId) return;
+    if (!hostEngine && newHostId !== useLobbyStore.getState().myPeerId) {
+      console.warn('[sess] original host left — aborting session');
+      abortSession('主公已断线 · 本局已中断');
+    }
+  },
+  // 游戏中连接被打断的兜底：
+  //  · 断网后自动重连成功，但中继已重启导致房间消失 → ROOM_NOT_FOUND
+  //  · 中继完全连不上，重连 15 次仍失败 → unreachable
+  onError: (code) => {
+    if (!hostEngine && !clientSession) return;
+    if (code === 'ROOM_NOT_FOUND') {
+      console.warn('[sess] ROOM_NOT_FOUND mid-session — aborting');
+      abortSession('中军重启 · 房间已失散 · 本局中断');
+    } else if (code === 'RELAY_UNREACHABLE') {
+      console.warn('[sess] RELAY_UNREACHABLE mid-session — aborting');
+      abortSession('与中军失联 · 本局中断');
+    }
+  },
+  // 任何端（host 或 client）一旦进入 reconnecting / unreachable，
+  // 都视为本局中断：
+  //  · host 重连后 relay 已不认识我们（新 peerId），继续发 intent 无效
+  //  · client 重连后若成功 rejoin 也是新 peerId，无法接上原座位
+  // 简单稳妥做法：掉线立即退主菜单，提示玩家"重新开房"
+  onStatusChange: (status) => {
+    if (!hostEngine && !clientSession) return;
+    if (status === 'reconnecting') {
+      console.warn('[sess] socket reconnecting during active session — aborting');
+      abortSession('网络不稳 · 本局中断');
+    } else if (status === 'unreachable') {
+      console.warn('[sess] socket unreachable during active session — aborting');
+      abortSession('与中军失联 · 本局中断');
     }
   },
 });
