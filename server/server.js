@@ -264,17 +264,20 @@ function handleMessage(ws, msg) {
       const token = String(msg.sessionToken ?? '');
       const peer = tokens.get(token);
       if (!peer) {
+        console.log(`[resume] unknown token ${token.slice(0, 8)}… · SESSION_EXPIRED`);
         return send(ws, {
           t: 'error',
           code: 'SESSION_EXPIRED',
           msg: '会话已过期 · 请重新开房',
         });
       }
-      // 如果宽限期已过但 token 还在，也视为过期
       if (
         peer.disconnectedAt !== null &&
         Date.now() - peer.disconnectedAt > DISCONNECT_GRACE_MS
       ) {
+        console.log(
+          `[resume] token ${token.slice(0, 8)}… (${peer.name}) · grace period elapsed · SESSION_EXPIRED`,
+        );
         tokens.delete(token);
         return send(ws, {
           t: 'error',
@@ -282,8 +285,8 @@ function handleMessage(ws, msg) {
           msg: '会话已过期 · 请重新开房',
         });
       }
-      // 断线重连：把新 socket 接到原 peer 上
       peer.ws = ws;
+      const wasDisconnected = peer.disconnectedAt !== null;
       peer.disconnectedAt = null;
       peer.lastSeen = Date.now();
       ws.peer = peer;
@@ -299,7 +302,9 @@ function handleMessage(ws, msg) {
         players,
       });
       broadcast(peer.room, { t: 'peerResumed', peerId: peer.id }, peer.id);
-      console.log(`[room ${peer.room}] ${peer.name} 重连成功`);
+      console.log(
+        `[room ${peer.room}] ${peer.name} 重连成功 · ${wasDisconnected ? '断线' : '立即'}重连 · isHost=${peer.isHost}`,
+      );
       return;
     }
 

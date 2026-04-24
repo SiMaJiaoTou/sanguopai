@@ -236,11 +236,18 @@ export class NetworkClient {
       // 1. 有 sessionToken → 尝试 resume 接回原身份
       // 2. 否则若有 pending 的 create/join（在 queue 头部），会被 flush
       if (this.sessionToken) {
+        console.info(
+          `${LOG_PREFIX} handshake: resume (token=${this.sessionToken.slice(0, 8)}…)`,
+        );
         this.rawSend({ t: 'resume', sessionToken: this.sessionToken });
       } else if (this.pendingQueue.length > 0) {
-        // 第一条 create/join 先发（它本身就是身份消息）
         const first = this.pendingQueue.shift();
-        if (first) this.rawSend(first);
+        if (first) {
+          console.info(`${LOG_PREFIX} handshake: ${first.t} (no token)`);
+          this.rawSend(first);
+        }
+      } else {
+        console.info(`${LOG_PREFIX} handshake: nothing to send (idle connect)`);
       }
     };
     this.ws.onmessage = (ev) => {

@@ -44,6 +44,10 @@ export class HostEngine {
       if (peer.id === myPeerId) continue;
       this.room = joinPlayer(this.room, peer.id, peer.name);
     }
+    const seated = this.room.players.filter((p) => p.peerId !== null).length;
+    console.info(
+      `[host] engine created · room=${roomCode} seated=${seated}`,
+    );
   }
 
   start() {
@@ -128,7 +132,14 @@ export class HostEngine {
   }
 
   private handleIntent(from: string, action: GameAction) {
+    const fromLabel = from === this.myPeerId ? 'self' : from.slice(0, 8);
+    const before = this.room.phase;
     this.room = applyAction(this.room, from, action);
+    if (before !== this.room.phase) {
+      console.info(
+        `[host] intent ${action.type} from=${fromLabel} · phase ${before} → ${this.room.phase}`,
+      );
+    }
     this.maybeAdvance();
     this.broadcast();
   }
@@ -136,22 +147,33 @@ export class HostEngine {
   /** 统一的阶段推进检查 —— intent 处理完 / peer 断线托管后都会走 */
   private maybeAdvance() {
     if (this.room.phase === 'prep' && allReady(this.room)) {
+      console.info(`[host] all ready → advanceRound (round ${this.room.round})`);
       this.room = advanceRound(this.room);
     } else if (this.room.phase === 'talent') {
+      const before = this.room.phase;
       this.room = maybeExitTalent(this.room);
+      if (before !== this.room.phase) {
+        console.info(`[host] talent done → ${this.room.phase}`);
+      }
     }
   }
 
   private broadcast() {
-    // host 自己的视图
     const myView = buildClientView(this.room, this.myPeerId);
     useRoomStore.getState().setView(myView);
 
-    // 给每个其他玩家定点发
+    let recipients = 0;
     for (const p of this.room.players) {
       if (!p.peerId || !p.connected || p.peerId === this.myPeerId) continue;
       const view = buildClientView(this.room, p.peerId);
       network.sendHostEvent({ t: 'state', state: view }, p.peerId);
+      recipients++;
+    }
+    // 仅在"有状态事件"时打 log，避免心跳级别的静默广播刷屏
+    if (recipients > 0 || this.room.phase !== 'prep') {
+      console.info(
+        `[host] broadcast · phase=${this.room.phase} round=${this.room.round} → ${recipients} peers`,
+      );
     }
   }
 }
