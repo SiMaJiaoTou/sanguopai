@@ -345,14 +345,7 @@ export default function App() {
 
   // 联机专属：host 擂鼓启动实际对局（洗牌发手牌）
   const handleStartOnlineGame = () => {
-    console.info('[ui] host clicked 擂鼓·发牌');
-    console.info('[ui] dispatchGameAction type:', typeof dispatchGameAction);
-    try {
-      dispatchGameAction({ type: 'startGame' });
-      console.info('[ui] dispatchGameAction returned');
-    } catch (e) {
-      console.error('[ui] dispatchGameAction THREW:', e);
-    }
+    dispatchGameAction({ type: 'startGame' });
   };
 
   const factionCount = useMemo(() => {
@@ -647,9 +640,8 @@ export default function App() {
           isOnline &&
           state.modeChosen &&
           state.roomPlayers &&
-          // phase 信息从 room view 推断：roomPlayers 存在 + round=0 + 没有 hand
-          state.round === 0 &&
-          state.hand.length === 0 &&
+          // host 擂鼓之前 phase 严格为 'lobby'；进入 prep 后即使手牌被一键布阵清空也不能再弹
+          state.phase === 'lobby' &&
           !state.isFinished &&
           isHost && <StartGameHostPrompt dispatch={() => handleStartOnlineGame()} />}
       </AnimatePresence>
@@ -756,10 +748,7 @@ function StartGameHostPrompt({ dispatch }: { dispatch: () => void }) {
           —— 洗牌发令 · 诸将就位 ——
         </div>
         <button
-          onClick={(e) => {
-            console.info('[ui] StartGameHostPrompt button onClick', e);
-            dispatch();
-          }}
+          onClick={dispatch}
           className="btn-seal btn-seal-gold px-10 py-3 text-base tracking-[0.35em] relative overflow-hidden"
         >
           <div className="text-[15px] leading-none">擂 鼓 · 发 牌</div>

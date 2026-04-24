@@ -12,7 +12,7 @@ import type { AIState } from '../ai';
 import type { TalentInstance } from '../talents';
 import { useRoomStore } from './roomStore';
 import { dispatchGameAction } from './session';
-import type { ClientPlayerView, ClientView } from './roomTypes';
+import type { ClientPlayerView, ClientView, RoomPhase } from './roomTypes';
 
 export interface UnifiedGame {
   online: boolean;
@@ -31,6 +31,8 @@ export interface UnifiedGame {
   // 全房/全局
   round: number;
   isFinished: boolean;
+  /** 联机阶段；单机固定为 'prep'（游戏中）或 'lobby'（未开局） */
+  phase: RoomPhase;
   powerHistory: PowerSnapshot[];
   lastMessage: string | null;
   mode: 'normal' | 'empowered';
@@ -131,6 +133,7 @@ export function useUnifiedGame(): UnifiedGame {
       playerEliminatedAtRound: myView.eliminatedAtRound,
       round: view.round,
       isFinished: view.isFinished,
+      phase: view.phase,
       powerHistory: view.myPowerHistory,
       lastMessage: view.lastMessage,
       mode: view.mode,
@@ -185,6 +188,8 @@ export function useUnifiedGame(): UnifiedGame {
     playerEliminatedAtRound: single.playerEliminatedAtRound,
     round: single.round,
     isFinished: single.isFinished,
+    // 单机不区分 lobby/prep 阶段，一律当作 'prep'（正常游戏中）
+    phase: 'prep',
     powerHistory: single.powerHistory,
     lastMessage: single.lastMessage,
     mode: single.mode,
