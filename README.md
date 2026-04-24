@@ -12,13 +12,33 @@
 
 ## 开发与运行
 
+### 单机
+
 ```bash
 cd D:\SanguoPoker
 npm install
 npm run dev
 ```
 
-浏览器会自动打开 http://localhost:5173
+浏览器会自动打开 http://localhost:5173，主菜单选【单机征伐】即可。
+
+### 联机（8 人 Host-Authoritative）
+
+启动 WebSocket 中继（仅做消息转发，不含业务逻辑）：
+
+```bash
+cd server
+npm install
+npm run dev          # 监听 ws://localhost:8787
+```
+
+前端不需改任何配置，默认会连 `ws://localhost:8787`。线上部署时可在客户端"自定中继地址"里填 `wss://你的域名/ws`，或在构建时注入 `VITE_RELAY_URL` 环境变量。
+
+玩法：
+- 主菜单选【创建房间】→ 输入名号 → 得到 6 位符印
+- 其它玩家选【加入房间】→ 输入符印 + 名号
+- 房间最多 8 人；房主点【擂鼓出征】同步开局
+- 房主断线时由最早进房者自动接任
 
 ## 项目结构
 

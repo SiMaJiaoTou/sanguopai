@@ -1,0 +1,14 @@
+{
+  "name": "sanguopoker-relay",
+  "version": "1.0.0",
+  "description": "WebSocket 中继：房间管理 + 消息转发 (host-authoritative)",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

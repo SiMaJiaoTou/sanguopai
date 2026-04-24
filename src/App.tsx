@@ -42,6 +42,9 @@ import { DuelOverlay } from './components/DuelOverlay';
 import { ModeSelectionModal } from './components/ModeSelectionModal';
 import { TalentPickerModal } from './components/TalentPickerModal';
 import { TalentsPanel } from './components/TalentsPanel';
+import { LobbyScreens } from './components/LobbyScreens';
+import { useLobbyStore } from './net/lobbyStore';
+import { network } from './net/Network';
 
 function findCardById(
   hand: Card[],
@@ -62,9 +65,43 @@ export default function App() {
   // 记录上一次触发过特效的牌型签名，避免重复播放
   const lastEffectSig = useRef<string>('');
 
+  // ========== 大厅 / 联机屏幕控制 ==========
+  const lobbyScreen = useLobbyStore((s) => s.screen);
+  const setLobbyScreen = useLobbyStore((s) => s.setScreen);
+  const isHost = useLobbyStore((s) => s.isHost);
+  const roomCode = useLobbyStore((s) => s.roomCode);
+  const peers = useLobbyStore((s) => s.peers);
+
+  const showLobby = lobbyScreen !== 'inGame';
+
+  // 进入单机
+  const handleEnterSinglePlayer = () => {
+    setLobbyScreen('inGame');
+  };
+  // Host 擂鼓出征：本地进入游戏 + 通知所有成员同步进入
+  const handleEnterOnlineGame = () => {
+    network.sendHostEvent({ t: 'gameStart' });
+    setLobbyScreen('inGame');
+  };
+
+  // 非 host 收到 gameStart 时进入游戏
   useEffect(() => {
-    // 仅在玩家已选择模式后才开局；未选择时显示模式选择弹窗
+    const unsub = network.subscribe({
+      onHostEvent: (payload) => {
+        if (payload.t === 'gameStart') {
+          setLobbyScreen('inGame');
+        }
+      },
+    });
+    return () => {
+      unsub();
+    };
+  }, [setLobbyScreen]);
+
+  useEffect(() => {
+    // 进入游戏屏幕后：玩家已选择模式时才开局；未选择时显示模式选择弹窗
     if (
+      !showLobby &&
       state.modeChosen &&
       state.hand.length === 0 &&
       state.deck.length === 0 &&
@@ -74,7 +111,7 @@ export default function App() {
       state.startNewGame();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.modeChosen]);
+  }, [state.modeChosen, showLobby]);
 
   const cfg = ROUND_CONFIGS[state.round];
   const teamsRequired = cfg.teamsRequired;
@@ -283,6 +320,26 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-scroll">
+      {/* ========== 大厅 / 连接界面 ========== */}
+      {showLobby && (
+        <LobbyScreens
+          onEnterSinglePlayer={handleEnterSinglePlayer}
+          onEnterGame={handleEnterOnlineGame}
+        />
+      )}
+
+      {/* 游戏内：联机房间信息小条（已进入游戏时才显示） */}
+      {!showLobby && roomCode && (
+        <RoomHud
+          roomCode={roomCode}
+          isHost={isHost}
+          peerCount={peers.length}
+          onLeave={() => {
+            useLobbyStore.getState().leaveRoom();
+          }}
+        />
+      )}
+
       <TopBar
         round={state.round}
         roundDesc={cfg.description}
@@ -492,9 +549,9 @@ export default function App() {
         onFillHand={state.gmFillHand}
       />
 
-      {/* 初始模式选择弹窗（只在首次进入时展示） */}
+      {/* 初始模式选择弹窗（只在首次进入游戏屏幕时展示） */}
       <AnimatePresence>
-        {!state.modeChosen && (
+        {!showLobby && !state.modeChosen && (
           <ModeSelectionModal onChoose={(m) => state.chooseMode(m)} />
         )}
       </AnimatePresence>
@@ -509,6 +566,58 @@ export default function App() {
           />
         )}
       </AnimatePresence>
+    </div>
+  );
+}
+
+// ======================================================================
+// 游戏内 · 房间信息小条
+// ======================================================================
+function RoomHud({
+  roomCode,
+  isHost,
+  peerCount,
+  onLeave,
+}: {
+  roomCode: string;
+  isHost: boolean;
+  peerCount: number;
+  onLeave: () => void;
+}) {
+  return (
+    <div
+      className="fixed top-2 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 px-3 py-1.5 rounded font-kai"
+      style={{
+        background: 'linear-gradient(180deg, #3a2418 0%, #1a0f08 100%)',
+        border: '1.5px solid #8b6914',
+        boxShadow:
+          '0 2px 8px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,220,160,0.25)',
+      }}
+    >
+      <span className="text-[10px] tracking-[0.3em] text-amber-200/70">
+        房间
+      </span>
+      <span
+        className="text-[13px] font-black tabular-nums"
+        style={{
+          letterSpacing: '0.25em',
+          background:
+            'linear-gradient(180deg, #fff5cc 0%, #f7d57a 40%, #d4af37 75%, #6b4a10 100%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+        }}
+      >
+        {roomCode}
+      </span>
+      <span className="text-[10px] text-amber-100/65 tracking-widest">
+        · {peerCount} 人 · {isHost ? '主公' : '客卿'}
+      </span>
+      <button
+        onClick={onLeave}
+        className="ml-2 text-[10px] tracking-[0.22em] text-red-300/75 hover:text-red-200 transition-colors"
+      >
+        撤 旗
+      </button>
     </div>
   );
 }
