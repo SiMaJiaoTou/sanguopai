@@ -22,6 +22,7 @@ import {
   maybeExitTalent,
 } from './roomReducer';
 import { useRoomStore } from './roomStore';
+import { useLobbyStore } from './lobbyStore';
 
 export class HostEngine {
   private room: RoomState;
@@ -34,7 +35,18 @@ export class HostEngine {
     this.myPeerId = myPeerId;
     this.myName = myName;
     this.room = createInitialRoom(roomCode, myPeerId);
+    // host 自己
     this.room = joinPlayer(this.room, myPeerId, myName);
+    // 大厅里已经进来的其他成员 —— 这些 peerJoined 事件早在
+    // HostEngine 实例化之前就已经被触发过，所以需要从 lobbyStore 补种。
+    const lobbyPeers = useLobbyStore.getState().peers;
+    for (const peer of lobbyPeers) {
+      if (peer.id === myPeerId) continue;
+      this.room = joinPlayer(this.room, peer.id, peer.name);
+    }
+    console.info(
+      `[host] engine init: seated ${this.room.players.filter((p) => p.peerId).length} players`,
+    );
   }
 
   start() {

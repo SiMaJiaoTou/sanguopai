@@ -50,12 +50,28 @@ export function dispatchGameAction(action: GameAction) {
   }
 }
 
-/** 由 App.tsx 调用：进入游戏屏幕时启动 */
+/** 由 App.tsx 调用：进入游戏屏幕时启动。幂等：已在正确角色则不做任何事。 */
 export function startSession() {
-  stopSession();
   const lobby = useLobbyStore.getState();
   if (!lobby.roomCode || !lobby.myPeerId) return;
-  if (lobby.isHost) {
+  const wantHost = lobby.isHost;
+
+  // 角色匹配 → 已在跑，忽略
+  if (wantHost && hostEngine) return;
+  if (!wantHost && clientSession) return;
+
+  // 角色不匹配（例如 host 迁移后重建）→ 关掉错误角色的引擎，但不清 view，
+  // 避免把前序广播过来的 ClientView 冲掉
+  if (hostEngine) {
+    hostEngine.stop();
+    hostEngine = null;
+  }
+  if (clientSession) {
+    clientSession.stop();
+    clientSession = null;
+  }
+
+  if (wantHost) {
     hostEngine = new HostEngine(
       lobby.roomCode,
       lobby.myPeerId,
@@ -68,6 +84,7 @@ export function startSession() {
   }
 }
 
+/** 完全结束联机会话：停引擎 + 清空 view（返回大厅时用） */
 export function stopSession() {
   if (hostEngine) {
     hostEngine.stop();
