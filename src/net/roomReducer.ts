@@ -298,39 +298,38 @@ function startGame(room: RoomState): RoomState {
     }
   }
 
-  // 人类玩家各自发初始手牌（5 张；Lv.1 池）
+  // 人类玩家 & AI 均发起手牌：每人只发 1 张随机战力 15 点的牌（2 点面值 = 战力 15）
   const cfg = ROUND_CONFIGS[0];
   for (let i = 0; i < players.length; i++) {
     const p = players[i];
-    if (p.isAI) continue;
     const drawn: Card[] = [];
     let working = deck;
 
-    // 玩家起手强制刘备（仅第一个玩家？这里给每个人都尝试独立"刘备"不现实；按原单机逻辑只给第一个进房的人）
-    if (i === 0) {
-      const liubeiIdx = working.findIndex(
-        (c) => c.faction === '蜀' && c.name === '刘备',
-      );
-      if (liubeiIdx >= 0) {
-        drawn.push(working[liubeiIdx]);
-        working = working
-          .slice(0, liubeiIdx)
-          .concat(working.slice(liubeiIdx + 1));
-      }
+    // 战力 15 起手 = pointValue 15（HERO_TABLE 中 label '2' 那行）。
+    // 注意：此处绕过等级解锁限制，因为 Lv.1 本来是解锁不到 15 的。
+    const candidates: number[] = [];
+    for (let k = 0; k < working.length; k++) {
+      if (working[k].pointValue === 15) candidates.push(k);
     }
-    while (drawn.length < cfg.initialDrawCount) {
-      const r = drawOneFromDeck(working, 1);
-      if (!r.card) break;
-      drawn.push(r.card);
-      working = r.rest;
+    if (candidates.length > 0) {
+      const pickIdx =
+        candidates[Math.floor(Math.random() * candidates.length)];
+      drawn.push(working[pickIdx]);
+      working = working
+        .slice(0, pickIdx)
+        .concat(working.slice(pickIdx + 1));
     }
     deck = working;
-    players[i] = {
-      ...players[i],
-      hand: drawn,
-      freeRedrawsLeft: cfg.freeRedrawsGain,
-      ready: false,
-    };
+    if (p.isAI) {
+      players[i] = { ...players[i], hand: drawn };
+    } else {
+      players[i] = {
+        ...players[i],
+        hand: drawn,
+        freeRedrawsLeft: cfg.freeRedrawsGain,
+        ready: false,
+      };
+    }
   }
 
   return {

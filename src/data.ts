@@ -179,13 +179,13 @@ export function shuffle<T>(arr: T[]): T[] {
 
 /** 回合配置表（PRD-Revision 版：去掉 drawCount/totalCards，改为每年经济/经验） */
 export const ROUND_CONFIGS: RoundConfig[] = [
-  { round: 0, initialDrawCount: 5, freeRedrawsGain: 2, teamsRequired: 1, description: '开局 · 布阵伊始', yearIncome: 10, expGain: 0 },
-  { round: 1, initialDrawCount: 0, freeRedrawsGain: 2, teamsRequired: 1, description: '第一年 · 初显锋芒', yearIncome: 11, expGain: 4 },
-  { round: 2, initialDrawCount: 0, freeRedrawsGain: 2, teamsRequired: 1, description: '第二年 · 鏖战中原', yearIncome: 12, expGain: 4 },
-  { round: 3, initialDrawCount: 0, freeRedrawsGain: 2, teamsRequired: 2, description: '第三年 · 双军并进', yearIncome: 13, expGain: 4 },
-  { round: 4, initialDrawCount: 0, freeRedrawsGain: 2, teamsRequired: 2, description: '第四年 · 合纵连横', yearIncome: 14, expGain: 6 },
-  { round: 5, initialDrawCount: 0, freeRedrawsGain: 2, teamsRequired: 2, description: '第五年 · 势如破竹', yearIncome: 15, expGain: 6 },
-  { round: 6, initialDrawCount: 0, freeRedrawsGain: 2, teamsRequired: 2, description: '第六年 · 一统河山', yearIncome: 16, expGain: 6 },
+  { round: 0, initialDrawCount: 1, freeRedrawsGain: 2, teamsRequired: 1, description: '开局 · 布阵伊始', yearIncome: 10, expGain: 0 },
+  { round: 1, initialDrawCount: 0, freeRedrawsGain: 2, teamsRequired: 1, description: '第一年 · 初显锋芒', yearIncome: 11, expGain: 8 },
+  { round: 2, initialDrawCount: 0, freeRedrawsGain: 2, teamsRequired: 1, description: '第二年 · 鏖战中原', yearIncome: 12, expGain: 8 },
+  { round: 3, initialDrawCount: 0, freeRedrawsGain: 2, teamsRequired: 2, description: '第三年 · 双军并进', yearIncome: 14, expGain: 8 },
+  { round: 4, initialDrawCount: 0, freeRedrawsGain: 2, teamsRequired: 2, description: '第四年 · 合纵连横', yearIncome: 16, expGain: 12 },
+  { round: 5, initialDrawCount: 0, freeRedrawsGain: 2, teamsRequired: 2, description: '第五年 · 势如破竹', yearIncome: 18, expGain: 12 },
+  { round: 6, initialDrawCount: 0, freeRedrawsGain: 2, teamsRequired: 2, description: '第六年 · 一统河山', yearIncome: 20, expGain: 12 },
 ];
 
 export const FINAL_ROUND = 6;
@@ -210,13 +210,13 @@ export const LEVEL_UNLOCK_TABLE: Record<number, number[]> = {
   6: [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
 };
 
-/** 每级升级到下一级所需经验（exp） */
+/** 每级升级到下一级所需经验（exp） · 4/8/12/16/20 递增 */
 export const LEVEL_EXP_REQUIRED: Record<number, number> = {
-  1: 2,
-  2: 4,
-  3: 6,
-  4: 8,
-  5: 10,
+  1: 4,
+  2: 8,
+  3: 12,
+  4: 16,
+  5: 20,
   6: Infinity, // 满级
 };
 

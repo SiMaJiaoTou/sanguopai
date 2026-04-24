@@ -173,32 +173,41 @@ export const useGameStore = create<GameState>((set, get) => ({
     const currentMode = get().mode;
     const shuffled = shuffle(generateDeck());
     const cfg = ROUND_CONFIGS[0];
-    // 开局抽 5 张，但只能抽到 Lv1 解锁池内的（3~6 点）
-    const level = 1;
     let working = shuffled;
     const drawn: Card[] = [];
 
-    // 强制起手：一张刘备（蜀 · 15 点）
-    const liubeiIdx = working.findIndex(
-      (c) => c.faction === '蜀' && c.name === '刘备',
-    );
-    if (liubeiIdx >= 0) {
-      drawn.push(working[liubeiIdx]);
-      working = working.slice(0, liubeiIdx).concat(working.slice(liubeiIdx + 1));
+    // 起手只发 1 张随机战力 15 点的牌（pointValue === 15，即 HERO_TABLE '2' 那行）。
+    // 绕过等级解锁限制 —— Lv.1 正常是解锁不到 15 的。
+    const candidates: number[] = [];
+    for (let k = 0; k < working.length; k++) {
+      if (working[k].pointValue === 15) candidates.push(k);
     }
-
-    // 剩余手牌从 Lv.1 解锁池中抽取，直到达到 initialDrawCount
-    while (drawn.length < cfg.initialDrawCount) {
-      const r = drawOneUnlocked(working, level);
-      if (!r.card) break;
-      drawn.push(r.card);
-      working = r.rest;
+    if (candidates.length > 0) {
+      const pickIdx =
+        candidates[Math.floor(Math.random() * candidates.length)];
+      drawn.push(working[pickIdx]);
+      working = working
+        .slice(0, pickIdx)
+        .concat(working.slice(pickIdx + 1));
     }
 
     // 威力加强模式：在剩余牌库中随机挑 20 张盖上神马印记
     if (currentMode === 'empowered') {
       working = applyRandomHorseSeals(working, 20);
     }
+    // AI 诸侯也各自分到一张随机战力 15 点的起手牌
+    const ais = createInitialAIs();
+    for (const ai of ais) {
+      const cand: number[] = [];
+      for (let k = 0; k < working.length; k++) {
+        if (working[k].pointValue === 15) cand.push(k);
+      }
+      if (cand.length === 0) break;
+      const pickIdx = cand[Math.floor(Math.random() * cand.length)];
+      ai.hand = [working[pickIdx]];
+      working = working.slice(0, pickIdx).concat(working.slice(pickIdx + 1));
+    }
+
     set({
       deck: working,
       hand: drawn,
@@ -212,7 +221,7 @@ export const useGameStore = create<GameState>((set, get) => ({
       recruitExp: 0,
       freeRedrawsLeft: cfg.freeRedrawsGain,
       lastMessage: '新局开始 · 点击【招募】按钮买卡组建军团',
-      ais: createInitialAIs(),
+      ais,
       playerHp: INITIAL_HP,
       playerEliminatedAtRound: null,
       duelLog: [],
