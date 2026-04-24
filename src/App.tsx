@@ -10,7 +10,7 @@ import {
   useSensors,
 } from '@dnd-kit/core';
 import { AnimatePresence } from 'framer-motion';
-import { useGameStore, type SlotTarget, type PowerSnapshot } from './store';
+import { type SlotTarget, type PowerSnapshot, useGameStore } from './store';
 import { evaluateHand } from './evaluate';
 import { buildEvalContext, adjustedPointValue } from './talents';
 import {
@@ -45,6 +45,8 @@ import { TalentsPanel } from './components/TalentsPanel';
 import { LobbyScreens } from './components/LobbyScreens';
 import { useLobbyStore } from './net/lobbyStore';
 import { network } from './net/Network';
+import { useUnifiedGame, useIsOnline } from './net/useUnifiedGame';
+import { startSession, stopSession, dispatchGameAction } from './net/session';
 
 function findCardById(
   hand: Card[],
@@ -58,7 +60,14 @@ function findCardById(
 }
 
 export default function App() {
-  const state = useGameStore();
+  // 单机与联机统一接口：state 同时扮演 useGameStore 的角色
+  const state = useUnifiedGame();
+  const isOnline = useIsOnline();
+  // 单机模式下我们还需要直接访问 useGameStore 的 nextRound/settleFinal
+  // （UnifiedGame 不暴露 round 推进，因为联机由 host 自动驱动）
+  const singleNextRound = useGameStore((s) => s.nextRound);
+  const singleSettleFinal = useGameStore((s) => s.settleFinal);
+
   const [activeId, setActiveId] = useState<string | null>(null);
   const [effect, setEffect] = useState<EffectTrigger | null>(null);
   const [activeTeamIndex, setActiveTeamIndex] = useState<0 | 1>(0);
@@ -76,10 +85,13 @@ export default function App() {
 
   // 进入单机
   const handleEnterSinglePlayer = () => {
+    // 确保联机 session 不在运行
+    stopSession();
     setLobbyScreen('inGame');
   };
-  // Host 擂鼓出征：本地进入游戏 + 通知所有成员同步进入
+  // Host 擂鼓出征：启动 session，通知所有成员同步进入
   const handleEnterOnlineGame = () => {
+    startSession();
     network.sendHostEvent({ t: 'gameStart' });
     setLobbyScreen('inGame');
   };
@@ -89,6 +101,8 @@ export default function App() {
     const unsub = network.subscribe({
       onHostEvent: (payload) => {
         if (payload.t === 'gameStart') {
+          // 作为 client 启动 session
+          startSession();
           setLobbyScreen('inGame');
         }
       },
@@ -98,9 +112,18 @@ export default function App() {
     };
   }, [setLobbyScreen]);
 
+  // 退出游戏 → 停止 session
   useEffect(() => {
-    // 进入游戏屏幕后：玩家已选择模式时才开局；未选择时显示模式选择弹窗
+    if (showLobby) {
+      stopSession();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showLobby]);
+
+  useEffect(() => {
+    // 单机模式：进入游戏屏幕后，玩家已选择模式时才开局
     if (
+      !isOnline &&
       !showLobby &&
       state.modeChosen &&
       state.hand.length === 0 &&
@@ -111,7 +134,7 @@ export default function App() {
       state.startNewGame();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.modeChosen, showLobby]);
+  }, [state.modeChosen, showLobby, isOnline]);
 
   const cfg = ROUND_CONFIGS[state.round];
   const teamsRequired = cfg.teamsRequired;
@@ -296,17 +319,33 @@ export default function App() {
   };
 
   const handleNext = () => {
-    // 放宽规则：未上满 5 员不再阻塞下一年；空位默认 0 武勇、倍率默认 1
-    const snapshot = buildSnapshot();
-    if (state.round >= FINAL_ROUND) {
-      state.settleFinal(snapshot);
+    if (isOnline) {
+      // 联机：切换自己的 ready 状态（所有人 ready 后 host 自动推进）
+      state.setReady(true);
       return;
     }
-    state.nextRound(snapshot);
+    // 单机：放宽规则，未上满 5 员不再阻塞下一年
+    const snapshot = buildSnapshot();
+    if (state.round >= FINAL_ROUND) {
+      singleSettleFinal(snapshot);
+      return;
+    }
+    singleNextRound(snapshot);
   };
 
   const handleRestart = () => {
+    if (isOnline) {
+      // 联机：返回大厅
+      stopSession();
+      setLobbyScreen('main');
+      return;
+    }
     state.startNewGame();
+  };
+
+  // 联机专属：host 擂鼓启动实际对局（洗牌发手牌）
+  const handleStartOnlineGame = () => {
+    dispatchGameAction({ type: 'startGame' });
   };
 
   const factionCount = useMemo(() => {
@@ -314,6 +353,8 @@ export default function App() {
     state.deck.forEach((c) => (m[c.faction] += 1));
     return m;
   }, [state.deck]);
+  // 联机不显示牌库张数（host 不广播 deck）
+  const showDeckStats = !isOnline;
 
   const expNeed =
     state.recruitLevel >= 6 ? Infinity : LEVEL_EXP_REQUIRED[state.recruitLevel];
@@ -361,9 +402,19 @@ export default function App() {
       {/* 诸侯两两对战动画 */}
       <DuelOverlay
         duel={state.duelLog[state.duelLog.length - 1] ?? null}
+        selfId={state.myId}
         currentHp={(() => {
-          const m: Record<string, number> = { player: state.playerHp };
-          for (const a of state.ais) m[a.id] = a.hp;
+          // 单机：hpDelta 以 'player' 为 key；联机：以各自 peerId 为 key
+          const m: Record<string, number> = {};
+          if (isOnline && state.roomPlayers) {
+            for (const p of state.roomPlayers) {
+              const id = p.peerId ?? `seat_${p.seatIdx}`;
+              m[id] = p.hp;
+            }
+          } else {
+            m['player'] = state.playerHp;
+            for (const a of state.ais) m[a.id] = a.hp;
+          }
           return m;
         })()}
       />
@@ -413,16 +464,29 @@ export default function App() {
             {/* 操作区 */}
             <div className="flex items-center justify-between gap-3 flex-wrap relative rounded-lg wood-light px-4 py-3 border-4 border-amber-950 shadow-card-deep">
               <div className="flex items-center gap-2 text-xs text-amber-100/80 flex-wrap font-kai">
-                <span>牌库 <span className="text-gold-grad font-black tabular-nums">{state.deck.length}</span></span>
-                {(['魏', '蜀', '吴', '群'] as const).map((f) => (
-                  <span
-                    key={f}
-                    className={`px-2 py-0.5 rounded ${FACTION_THEME[f].bg} ${FACTION_THEME[f].accent} border border-amber-900 text-[11px] font-black`}
-                    style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1)' }}
-                  >
-                    {f} {factionCount[f]}
+                {showDeckStats ? (
+                  <>
+                    <span>
+                      牌库{' '}
+                      <span className="text-gold-grad font-black tabular-nums">
+                        {state.deck.length}
+                      </span>
+                    </span>
+                    {(['魏', '蜀', '吴', '群'] as const).map((f) => (
+                      <span
+                        key={f}
+                        className={`px-2 py-0.5 rounded ${FACTION_THEME[f].bg} ${FACTION_THEME[f].accent} border border-amber-900 text-[11px] font-black`}
+                        style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1)' }}
+                      >
+                        {f} {factionCount[f]}
+                      </span>
+                    ))}
+                  </>
+                ) : (
+                  <span className="italic text-amber-200/55 tracking-widest">
+                    · 联机对局 · 共享牌库不可见 ·
                   </span>
-                ))}
+                )}
               </div>
 
               <div className="flex items-center gap-2 flex-wrap ml-auto">
@@ -454,7 +518,11 @@ export default function App() {
                   disabled={state.isFinished}
                   className="btn-wood btn-gold text-sm px-4 sm:px-6 py-2.5 sm:py-3 tracking-[0.2em]"
                 >
-                  {state.round >= FINAL_ROUND ? '⚔ 终局结算' : '⚔ 下 一 年'}
+                  {isOnline
+                    ? nextButtonLabelOnline(state.roomPlayers, state.myId)
+                    : state.round >= FINAL_ROUND
+                      ? '⚔ 终局结算'
+                      : '⚔ 下 一 年'}
                 </button>
               </div>
             </div>
@@ -540,20 +608,43 @@ export default function App() {
       </AnimatePresence>
 
       {/* 牌库抽屉（右下角固定按钮 + 弹出抽屉） */}
-      <DeckDrawer deck={state.deck} />
+      {/* 牌库抽屉：仅单机时显示（联机牌库由 host 保管） */}
+      {!isOnline && <DeckDrawer deck={state.deck} />}
 
-      {/* GM 调试工具 */}
-      <GMTool
-        onGrantGold={state.gmGrantGold}
-        onMaxLevel={state.gmMaxLevel}
-        onFillHand={state.gmFillHand}
-      />
+      {/* GM 调试工具（仅单机） */}
+      {!isOnline && (
+        <GMTool
+          onGrantGold={state.gmGrantGold}
+          onMaxLevel={state.gmMaxLevel}
+          onFillHand={state.gmFillHand}
+        />
+      )}
 
       {/* 初始模式选择弹窗（只在首次进入游戏屏幕时展示） */}
       <AnimatePresence>
         {!showLobby && !state.modeChosen && (
-          <ModeSelectionModal onChoose={(m) => state.chooseMode(m)} />
+          <>
+            {/* 联机时：只有 host 能选；其他人看等待面板 */}
+            {isOnline && !isHost ? (
+              <WaitingForHostModal text="等 待 主 公 择 模 式" />
+            ) : (
+              <ModeSelectionModal onChoose={(m) => state.chooseMode(m)} />
+            )}
+          </>
         )}
+      </AnimatePresence>
+
+      {/* 联机：host 已选模式但未擂鼓（phase=lobby）→ 等待 */}
+      <AnimatePresence>
+        {!showLobby &&
+          isOnline &&
+          state.modeChosen &&
+          state.roomPlayers &&
+          // phase 信息从 room view 推断：roomPlayers 存在 + round=0 + 没有 hand
+          state.round === 0 &&
+          state.hand.length === 0 &&
+          !state.isFinished &&
+          isHost && <StartGameHostPrompt dispatch={() => handleStartOnlineGame()} />}
       </AnimatePresence>
 
       {/* 天赐四选一弹窗 */}
@@ -568,6 +659,125 @@ export default function App() {
       </AnimatePresence>
     </div>
   );
+}
+
+// ======================================================================
+// 联机等待面板（非 host 在 host 未擂鼓时看）
+// ======================================================================
+function WaitingForHostModal({ text }: { text: string }) {
+  return (
+    <div
+      className="fixed inset-0 z-[72] flex items-center justify-center p-4"
+      style={{
+        background:
+          'radial-gradient(ellipse at center, rgba(20,10,4,0.85) 0%, rgba(0,0,0,0.95) 100%)',
+        backdropFilter: 'blur(6px)',
+      }}
+    >
+      <div
+        className="parchment px-10 py-12 text-center"
+        style={{
+          border: '3px solid #5a3a1c',
+          boxShadow: 'inset 0 0 60px rgba(100,60,20,0.25)',
+          minWidth: 360,
+        }}
+      >
+        <div className="text-[10px] text-red-900/55 tracking-[1em] font-kai font-black mb-1">
+          候 令
+        </div>
+        <div
+          className="text-3xl font-black font-kai tracking-[0.3em]"
+          style={{
+            background: 'linear-gradient(180deg, #7a1818 0%, #3a0404 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}
+        >
+          {text}
+        </div>
+        <div className="mt-5 flex items-center justify-center gap-2 text-[11px] tracking-[0.3em] text-red-900/65 italic font-kai">
+          <span
+            className="inline-block"
+            style={{
+              width: 12,
+              height: 12,
+              border: '2px solid currentColor',
+              borderTopColor: 'transparent',
+              borderRadius: '50%',
+              animation: 'spin 1.2s linear infinite',
+            }}
+          />
+          正 在 调 度…
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StartGameHostPrompt({ dispatch }: { dispatch: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-[71] flex items-center justify-center p-4"
+      style={{
+        background:
+          'radial-gradient(ellipse at center, rgba(20,10,4,0.7) 0%, rgba(0,0,0,0.9) 100%)',
+        backdropFilter: 'blur(4px)',
+      }}
+    >
+      <div
+        className="parchment px-10 py-12 text-center"
+        style={{
+          border: '3px solid #5a3a1c',
+          boxShadow: 'inset 0 0 60px rgba(100,60,20,0.25)',
+          minWidth: 420,
+        }}
+      >
+        <div className="text-[10px] text-red-900/55 tracking-[1em] font-kai font-black mb-1">
+          出 兵 在 即
+        </div>
+        <div
+          className="text-3xl font-black font-kai tracking-[0.3em] mb-3"
+          style={{
+            background: 'linear-gradient(180deg, #7a1818 0%, #3a0404 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}
+        >
+          擂 鼓 开 战
+        </div>
+        <div className="text-[12px] text-red-900/65 italic tracking-[0.15em] font-kai mb-6">
+          —— 洗牌发令 · 诸将就位 ——
+        </div>
+        <button
+          onClick={dispatch}
+          className="btn-seal btn-seal-gold px-10 py-3 text-base tracking-[0.35em] relative overflow-hidden"
+        >
+          <div className="text-[15px] leading-none">擂 鼓 · 发 牌</div>
+          <div className="sweep-sheen" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ======================================================================
+// 辅助：联机模式下"下一年"按钮标签
+// ======================================================================
+function nextButtonLabelOnline(
+  players: import('./net/roomTypes').ClientPlayerView[] | null,
+  myId: string,
+): string {
+  if (!players) return '⚔ 下 一 年';
+  const me = players.find((p) => p.peerId === myId);
+  const humanAlive = players.filter(
+    (p) => !p.isAI && p.eliminatedAtRound === null,
+  );
+  const readyCount = humanAlive.filter((p) => p.ready).length;
+  const total = humanAlive.length;
+  if (me?.ready) {
+    return `· 等候群雄 · ${readyCount}/${total} ·`;
+  }
+  return `⚔ 擂 鼓 就 绪 · ${readyCount}/${total}`;
 }
 
 // ======================================================================

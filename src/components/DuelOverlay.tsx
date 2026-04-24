@@ -12,6 +12,8 @@ interface Props {
   } | null;
   /** 本轮对战 *结束后* 的当前 HP（用于反推对战前血量） */
   currentHp: Record<string, number>;
+  /** 自己的 id（单机 = 'player'，联机 = peerId） */
+  selfId?: string;
   /** 本轮结束后结果：玩家是否已阵亡 */
   onFinished?: () => void;
 }
@@ -37,7 +39,12 @@ const PHASE_MS: Record<Phase, number> = {
   done: 0,
 };
 
-export function DuelOverlay({ duel, currentHp, onFinished }: Props) {
+export function DuelOverlay({
+  duel,
+  currentHp,
+  selfId = 'player',
+  onFinished,
+}: Props) {
   const [playing, setPlaying] = useState(false);
   const [phase, setPhase] = useState<Phase>('slide_in');
   const lastRound = useRef<number | null>(null);
@@ -166,6 +173,7 @@ export function DuelOverlay({ duel, currentHp, onFinished }: Props) {
                 step={s}
                 phase={phase}
                 slideInDelay={i * 0.06}
+                selfId={selfId}
               />
             ))}
           </div>
@@ -190,10 +198,12 @@ function DuelRow({
   step,
   phase,
   slideInDelay,
+  selfId,
 }: {
   step: Step;
   phase: Phase;
   slideInDelay: number;
+  selfId: string;
 }) {
   const { duel: d } = step;
   const draw = d.winnerId === null;
@@ -346,7 +356,7 @@ function DuelRow({
           shake={shakeA}
           phase={phase}
           side="left"
-          isPlayer={d.aId === 'player'}
+          isPlayer={d.aId === selfId}
         />
       </motion.div>
 
@@ -407,7 +417,7 @@ function DuelRow({
           shake={shakeB}
           phase={phase}
           side="right"
-          isPlayer={d.bId === 'player'}
+          isPlayer={d.bId === selfId}
         />
       </motion.div>
     </div>
