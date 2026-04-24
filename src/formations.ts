@@ -20,7 +20,7 @@ export const FORMATIONS: Record<RankTypeKey, Formation> = {
     name: '一字阵',
     rankName: '五条',
     description: '呈横向一字排开，平推之势',
-    broadcast: '汇聚 5 名武勇相同的猛将，触发【一字阵】，军势乘 x12 倍！',
+    broadcast: '汇聚 5 名武勇相同的猛将，触发【一字阵】，军势乘 x10 倍！',
     formation: [
       [-2.75, 0, 0],
       [-1.375, 0, 0],
@@ -34,7 +34,7 @@ export const FORMATIONS: Record<RankTypeKey, Formation> = {
     name: '雁行阵',
     rankName: '四条',
     description: '呈斜线排列，如大雁斜飞',
-    broadcast: '寻得 4 名武勇相同的猛将，触发【雁行阵】，军势乘 x9 倍！',
+    broadcast: '寻得 4 名武勇相同的猛将，触发【雁行阵】，军势乘 x8 倍！',
     formation: [
       [-2.75, 0, -1.65],
       [-1.375, 0, -0.825],

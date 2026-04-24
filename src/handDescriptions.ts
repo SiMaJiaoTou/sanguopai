@@ -6,9 +6,9 @@ import type { RankTypeKey } from './types';
  */
 export const RANK_DESCRIPTIONS: Record<RankTypeKey, string> = {
   FIVE_OF_A_KIND:
-    '一字阵 · 寻得 5 员武勇相同的猛将横向一字排开，平推之势，万中无一，阵法加成 +12',
+    '一字阵 · 寻得 5 员武勇相同的猛将横向一字排开，平推之势，万中无一，阵法加成 +10',
   FOUR_OF_A_KIND:
-    '雁行阵 · 寻得 4 员武勇相同的猛将并 1 员副将，斜线排布如大雁斜飞，阵法加成 +9',
+    '雁行阵 · 寻得 4 员武勇相同的猛将并 1 员副将，斜线排布如大雁斜飞，阵法加成 +8',
   FULL_HOUSE:
     '锥形阵 · 寻得 3 员及另 2 员武勇相同的将领，前锋尖锐、后阵宽阔，阵法加成 +6',
   STRAIGHT:
