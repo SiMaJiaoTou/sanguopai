@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useEffect, useState } from 'react';
 import { useLobbyStore } from '../net/lobbyStore';
-import type { ConnectionStatus } from '../net/Network';
+import { network, type ConnectionStatus } from '../net/Network';
 
 /**
  * 主菜单 · 创建房间 · 加入房间 · 房间待命
@@ -214,6 +214,7 @@ function CreateRoom() {
 
         {lastError && <ErrorLine text={lastError} />}
         <StatusLine status={connectionStatus} />
+        <ConnectionTrouble status={connectionStatus} />
 
         <motion.button
           whileHover={!isConnecting && local.trim() ? { y: -2 } : undefined}
@@ -293,6 +294,7 @@ function JoinRoom() {
 
         {lastError && <ErrorLine text={lastError} />}
         <StatusLine status={connectionStatus} />
+        <ConnectionTrouble status={connectionStatus} />
 
         <motion.button
           whileHover={
@@ -679,6 +681,7 @@ function StatusLine({ status }: { status: ConnectionStatus }) {
       in_room: '· 已 入 府 邸 ·',
       reconnecting: '· 信 使 断 线 · 重 新 请 缨 中 ·',
       error: '· 中 军 失 联 ·',
+      unreachable: '· 中 军 不 可 达 · 请 检 查 中 继 地 址 ·',
     } as Record<ConnectionStatus, string>
   )[status];
   const color = (
@@ -689,6 +692,7 @@ function StatusLine({ status }: { status: ConnectionStatus }) {
       in_room: '#5a7a28',
       reconnecting: '#c8521a',
       error: '#a02020',
+      unreachable: '#a02020',
     } as Record<ConnectionStatus, string>
   )[status];
   const spinner = status === 'connecting' || status === 'reconnecting';
@@ -717,6 +721,58 @@ function Spinner() {
         borderRadius: '50%',
       }}
     />
+  );
+}
+
+/**
+ * 连接失败/不可达时显示的诊断区块：
+ * - 显示当前 relay 地址，帮助用户排查是否连错
+ * - 给一个 "重 新 请 缨" 手动重试按钮（复用上次 create/join 意图）
+ * - 给一个提示（先启动 server/、或改中继地址）
+ */
+function ConnectionTrouble({
+  status,
+}: {
+  status: ConnectionStatus;
+}) {
+  if (status !== 'unreachable' && status !== 'error') return null;
+  const url = network.currentUrl;
+  // Network.retry() 会清零重连计数 + 重开 socket + 自动重放上次的 create/join 意图
+  const handleRetry = () => network.retry();
+  return (
+    <div
+      className="text-[11px] font-kai tracking-widest px-3 py-3 rounded space-y-2"
+      style={{
+        background: 'rgba(160,30,30,0.10)',
+        border: '1.5px dashed #a02020',
+        color: '#7a1010',
+      }}
+    >
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="opacity-70">当前中继：</span>
+        <span
+          className="font-mono text-[11px] px-2 py-0.5 rounded"
+          style={{
+            background: 'rgba(255,245,205,0.85)',
+            color: '#3a0404',
+            letterSpacing: '0.02em',
+          }}
+        >
+          {url}
+        </span>
+      </div>
+      <div className="opacity-80 leading-relaxed">
+        · 请确认 <span className="font-mono">server/</span>{' '}
+        目录下中继服务已启动 (npm run dev) ·<br />
+        · 或展开【自 定 中 继 地 址】修改为可用地址 ·
+      </div>
+      <button
+        onClick={handleRetry}
+        className="btn-seal btn-seal-gold text-[12px] px-4 py-2 tracking-[0.3em]"
+      >
+        重 新 请 缨
+      </button>
+    </div>
   );
 }
 
