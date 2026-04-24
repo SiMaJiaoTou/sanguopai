@@ -224,8 +224,19 @@ export function applyAction(
       };
 
     case 'startGame':
-      if (from !== room.hostPeerId) return room;
-      if (room.phase !== 'lobby') return room;
+      console.info(
+        `[reducer] startGame received · from=${from === room.hostPeerId ? 'host' : from} phase=${room.phase}`,
+      );
+      if (from !== room.hostPeerId) {
+        console.warn(`[reducer] startGame REJECTED: not host`);
+        return room;
+      }
+      if (room.phase !== 'lobby') {
+        console.warn(
+          `[reducer] startGame REJECTED: phase=${room.phase} (expected lobby)`,
+        );
+        return room;
+      }
       return startGame(room);
 
     case 'buyCard':
@@ -253,11 +264,15 @@ export function applyAction(
 
 // ------------------ startGame ------------------
 function startGame(room: RoomState): RoomState {
+  console.info(
+    `[reducer.startGame] enter · mode=${room.mode} players-with-peer=${room.players.filter((p) => p.peerId).length}`,
+  );
   // 洗牌 + 可选盖神马印
   let deck = shuffle(generateDeck());
   if (room.mode === 'empowered') {
     deck = applyRandomHorseSeals(deck, 20);
   }
+  console.info(`[reducer.startGame] deck shuffled size=${deck.length}`);
 
   // 把所有已占座位发手牌；空位 AI 托管
   const players = room.players.map((p) => {
@@ -302,6 +317,9 @@ function startGame(room: RoomState): RoomState {
   const cfg = ROUND_CONFIGS[0];
   for (let i = 0; i < players.length; i++) {
     const p = players[i];
+    console.info(
+      `[reducer.startGame] seat ${i} peerId=${p.peerId ?? 'null'} isAI=${p.isAI} name=${p.name}`,
+    );
     if (p.isAI) continue;
     const drawn: Card[] = [];
     let working = deck;
@@ -325,6 +343,9 @@ function startGame(room: RoomState): RoomState {
       working = r.rest;
     }
     deck = working;
+    console.info(
+      `[reducer.startGame] seat ${i} dealt ${drawn.length} cards · deck now ${deck.length}`,
+    );
     players[i] = {
       ...players[i],
       hand: drawn,
