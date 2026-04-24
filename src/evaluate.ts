@@ -63,32 +63,35 @@ function isFlush(cards: Card[]): boolean {
   return cards.every((c) => c.faction === cards[0].faction);
 }
 
-function countsEq(a: number[], b: number[]): boolean {
-  if (a.length !== b.length) return false;
-  return a.every((v, i) => v === b[i]);
-}
-
 /**
  * 核心评估函数
  * 战力 = pointSum × (rankScore + suitBonus)（无封顶）
- * @param cards 五张武将
+ * 阵法检测基于已放置卡牌的组合：只要满足对应的"对子/三条/顺子"等条件即触发，
+ * 不再强制要求 5 张。pointSum 与阵营同心依据实际张数：
+ *  - pointSum：所有已放卡牌的调整后点数之和
+ *  - flush（阵营同心）：仍要求 5 张且同阵营（narrative 上"5 员同心"）
+ *  - straight（长蛇阵）：仍要求 5 张连号（4 张速成由 shortStraight 天赐控制）
+ * @param cards 已放置的武将（1 ≤ 长度 ≤ 5）
  * @param ctx 天赐被动上下文（可选）
  */
 export function evaluateHand(
   cards: Card[],
   ctx?: EvalContext,
 ): EvaluateResult | null {
-  if (!cards || cards.length !== 5) return null;
+  if (!cards || cards.length === 0) return null;
 
+  const n = cards.length;
   // 阵法判定仍按原始 pointValue（桃园结义不影响点数关系）
   const sorted = cards.slice().sort((a, b) => b.pointValue - a.pointValue);
   const values = sorted.map((c) => c.pointValue);
   const counts = getCountsDesc(sorted);
-  const rawFlush = isFlush(sorted);
+  // 阵营同心仍要求 5 张同阵营（narrative："5 员将领同属一阵营"）
+  const rawFlush = n === 5 && isFlush(sorted);
   const flush = rawFlush && !(ctx?.disableFlush ?? false);
-  const classicStraight = isStraight(values);
-  // 长蛇速成：4 张连号也算顺子（只在未命中经典顺子时回落到此判定）
-  const shortStraight = ctx?.shortStraight && hasFourStraight(values);
+  // 经典长蛇：5 张连号；速成长蛇（shortStraight 天赐）：任意 4 张连号
+  const classicStraight = n >= 5 && isStraight(values);
+  const shortStraight =
+    ctx?.shortStraight && n >= 4 && hasFourStraight(values);
   const straight = classicStraight || !!shortStraight;
 
   // 勇武和采用经天赐调整过的 pointValue
@@ -98,15 +101,19 @@ export function evaluateHand(
     pointSum += (ctx.goldForBonus ?? 0) * 2;
   }
 
-  // 点数牌型（互斥取最高）
+  // ---- 阵法互斥取最高 ----
+  // 仅根据 counts（各点数出现次数）判定，不再用 totalCards === 5 做闸
+  const maxCount = counts[0] ?? 0;
+  const pairGroups = counts.filter((c) => c >= 2).length;
+
   let rankType = RANK_TYPES.HIGH_CARD;
-  if (countsEq(counts, [5])) rankType = RANK_TYPES.FIVE_OF_A_KIND;
-  else if (countsEq(counts, [4, 1])) rankType = RANK_TYPES.FOUR_OF_A_KIND;
-  else if (countsEq(counts, [3, 2])) rankType = RANK_TYPES.FULL_HOUSE;
+  if (maxCount >= 5) rankType = RANK_TYPES.FIVE_OF_A_KIND;
+  else if (maxCount >= 4) rankType = RANK_TYPES.FOUR_OF_A_KIND;
+  else if (maxCount >= 3 && pairGroups >= 2) rankType = RANK_TYPES.FULL_HOUSE;
   else if (straight) rankType = RANK_TYPES.STRAIGHT;
-  else if (countsEq(counts, [3, 1, 1])) rankType = RANK_TYPES.THREE_OF_A_KIND;
-  else if (countsEq(counts, [2, 2, 1])) rankType = RANK_TYPES.TWO_PAIR;
-  else if (countsEq(counts, [2, 1, 1, 1])) rankType = RANK_TYPES.ONE_PAIR;
+  else if (maxCount >= 3) rankType = RANK_TYPES.THREE_OF_A_KIND;
+  else if (pairGroups >= 2) rankType = RANK_TYPES.TWO_PAIR;
+  else if (maxCount >= 2) rankType = RANK_TYPES.ONE_PAIR;
 
   // 阵法倍率（天赐可叠加）
   const rankScoreExtra = ctx?.rankBonusExtra[rankType.key] ?? 0;

@@ -17,7 +17,7 @@ import { buyCardPrice } from '../store';
 import type { GameMode, PowerSnapshot } from '../store';
 import type { GameAction } from './protocol';
 import type { RoomState, PlayerSlot } from './roomTypes';
-import { rollTalents, buildEvalContext, adjustedPointValue } from '../talents';
+import { rollTalents, buildEvalContext } from '../talents';
 import type { TalentInstance } from '../talents';
 import { evaluateHand } from '../evaluate';
 import { simulateAITurn, runDuels, INITIAL_HP } from '../ai';
@@ -693,7 +693,7 @@ export function advanceRound(room: RoomState): RoomState {
       continue;
     }
 
-    // human：用其 current teams 评估
+    // human：用其 current teams 评估。阵法检测按条件匹配即触发，不再要求 5 张
     const ctx = buildEvalContext(p.talents, {
       gold: p.gold,
       bailongInHand: p.hand.filter((c) => c.horseSeal === 'bailong').length,
@@ -703,31 +703,20 @@ export function advanceRound(room: RoomState): RoomState {
 
     const team0Cards = p.teams[0].filter((c): c is Card => !!c);
     const team1Cards = p.teams[1].filter((c): c is Card => !!c);
-    const e0 = team0Cards.length === 5 ? evaluateHand(team0Cards, ctx) : null;
-    const e1 = team1Cards.length === 5 ? evaluateHand(team1Cards, ctx) : null;
+    const e0 = team0Cards.length > 0 ? evaluateHand(team0Cards, ctx) : null;
+    const e1 = team1Cards.length > 0 ? evaluateHand(team1Cards, ctx) : null;
 
     const perHandBonus = p.talents.some(
       (t) => t.templateId === 'per_hand_card_2',
     )
       ? p.hand.length * 2
       : 0;
-    const goldBonus = p.talents.some((t) => t.templateId === 'gold_to_prowess')
-      ? p.gold * 2
-      : 0;
 
-    const t0Partial = e0
-      ? e0.power
-      : team0Cards.reduce((s, c) => s + adjustedPointValue(c, ctx), 0) +
-        perHandBonus +
-        goldBonus;
-    const t1Partial = e1
-      ? e1.power
-      : team1Cards.reduce((s, c) => s + adjustedPointValue(c, ctx), 0) +
-        (teamsRequired >= 2 ? perHandBonus + goldBonus : 0);
-    const t0 = e0 ? e0.power + perHandBonus : t0Partial;
+    // 每队军势 = evaluateHand 结果 + 手握百员加成；空队伍 → 0
+    const t0 = e0 ? e0.power + perHandBonus : 0;
     const t1 = e1
       ? e1.power + (teamsRequired >= 2 ? perHandBonus : 0)
-      : t1Partial;
+      : 0;
 
     let totalPower = t0 + (teamsRequired >= 2 ? t1 : 0);
     if (p.doubleThisRoundActive) totalPower *= 2;

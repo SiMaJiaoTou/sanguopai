@@ -366,14 +366,12 @@ export function simulateAITurn(
   return { ai: nextAI, deck: workingDeck, totalPower: total };
 }
 
-/** 某队的战力：满 5 张就走 evaluateHand，否则武勇和 × 1 */
+/** 某队的战力：基于已放置卡牌走 evaluateHand（阵法检测按条件匹配即触发） */
 function teamPowerOf(team: (Card | null)[]): number {
-  const full = team.filter((c): c is Card => !!c);
-  if (full.length === 5) {
-    const ev = evaluateHand(full);
-    return ev ? ev.power : 0;
-  }
-  return full.reduce((s, c) => s + c.pointValue, 0);
+  const placed = team.filter((c): c is Card => !!c);
+  if (placed.length === 0) return 0;
+  const ev = evaluateHand(placed);
+  return ev ? ev.power : 0;
 }
 
 /**

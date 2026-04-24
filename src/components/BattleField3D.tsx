@@ -858,7 +858,6 @@ export function BattleField3D({
   cards,
   evalResult,
 }: Props) {
-  const full = cards.every((c) => c !== null);
   const highlight = !!evalResult && (evalResult.rankType.score >= 6 || evalResult.isFlush);
   const [hovered, setHovered] = useState<number | null>(null);
   const [projected, setProjected] = useState<
@@ -890,7 +889,7 @@ export function BattleField3D({
           <div className="text-gold-grad font-black text-base sm:text-lg tracking-[0.25em] font-kai">
             {teamIndex === 0 ? '前军' : '后军'}
           </div>
-          {full && evalResult ? (
+          {evalResult ? (
             <div className="flex items-center gap-1.5 flex-wrap">
               <motion.span
                 key={evalResult.rankType.key}
@@ -932,15 +931,18 @@ export function BattleField3D({
         </div>
       </div>
 
-      {/* 四指标拆解 banner：始终显示。未成阵时阵法=1、阵营=0 */}
+      {/* 四指标拆解 banner：始终显示。未放卡时阵法=1、阵营=0 */}
       {(() => {
         const placedCount = cards.filter((c) => !!c).length;
         const basePower = cards.reduce((s, c) => s + (c?.pointValue ?? 0), 0);
-        const rankMult = full && evalResult ? evalResult.rankType.score : 1;
-        const flushBonus = full && evalResult ? evalResult.suitBonus : 0;
-        const finalPower = full && evalResult ? evalResult.power : basePower;
-        const flushLabel = full && evalResult && evalResult.isFlush ? '阵营同心' : '—';
-        const rankLabel = full && evalResult ? evalResult.rankType.name : `配阵中 · ${placedCount}/5`;
+        // 阵法检测按条件匹配即触发，不再要求 5 张
+        const rankMult = evalResult ? evalResult.rankType.score : 1;
+        const flushBonus = evalResult ? evalResult.suitBonus : 0;
+        const finalPower = evalResult ? evalResult.power : basePower;
+        const flushLabel = evalResult && evalResult.isFlush ? '阵营同心' : '—';
+        const rankLabel = evalResult
+          ? `${evalResult.rankType.name} · ${placedCount}/5`
+          : `配阵中 · ${placedCount}/5`;
 
         return (
           <motion.div

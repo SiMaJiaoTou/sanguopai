@@ -12,7 +12,7 @@ import {
 import { AnimatePresence } from 'framer-motion';
 import { type SlotTarget, type PowerSnapshot, useGameStore } from './store';
 import { evaluateHand } from './evaluate';
-import { buildEvalContext, adjustedPointValue } from './talents';
+import { buildEvalContext } from './talents';
 import {
   ROUND_CONFIGS,
   FINAL_ROUND,
@@ -151,63 +151,32 @@ export default function App() {
     [state.talents, state.gold, bailongInHand],
   );
 
-  // 每队评估（仅满 5 员才成阵；否则按"武勇和 × 1 倍率"累计）
+  // 每队评估：阵法检测只需满足对应条件即触发（不再要求必须 5 张）
   const team0Eval = useMemo(() => {
     const cards = state.teams[0].filter((c): c is Card => !!c);
-    return cards.length === 5 ? evaluateHand(cards, evalCtx) : null;
+    return cards.length > 0 ? evaluateHand(cards, evalCtx) : null;
   }, [state.teams, evalCtx]);
   const team1Eval = useMemo(() => {
     const cards = state.teams[1].filter((c): c is Card => !!c);
-    return cards.length === 5 ? evaluateHand(cards, evalCtx) : null;
+    return cards.length > 0 ? evaluateHand(cards, evalCtx) : null;
   }, [state.teams, evalCtx]);
 
-  // 手握百员加成：每张手牌基础勇武 +2（队伍未成阵时按部分战力叠加）
+  // 手握百员加成：每张手牌基础勇武 +2（额外加到每队军势上）
   const perHandBonus = useMemo(() => {
     const has = state.talents.some((t) => t.templateId === 'per_hand_card_2');
     return has ? state.hand.length * 2 : 0;
   }, [state.talents, state.hand.length]);
 
-  // 散金养士：每 1 金币基础勇武 +2（未成阵时也叠加到部分战力上）
-  const goldBonus = useMemo(() => {
-    const has = state.talents.some((t) => t.templateId === 'gold_to_prowess');
-    return has ? state.gold * 2 : 0;
-  }, [state.talents, state.gold]);
-
-  // 未成阵时的部分军势：经天赐 + 手握百员 + 散金养士 调整后的武勇和
-  const team0PartialPower = useMemo(() => {
-    if (team0Eval) return team0Eval.power;
-    const base = state.teams[0]
-      .filter((c): c is Card => !!c)
-      .reduce(
-        (s, c) =>
-          s +
-          adjustedPointValue(c, evalCtx),
-        0,
-      );
-    return base + perHandBonus + goldBonus;
-  }, [state.teams, team0Eval, evalCtx, perHandBonus, goldBonus]);
-  const team1PartialPower = useMemo(() => {
-    if (team1Eval) return team1Eval.power;
-    const base = state.teams[1]
-      .filter((c): c is Card => !!c)
-      .reduce(
-        (s, c) =>
-          s +
-          adjustedPointValue(c, evalCtx),
-        0,
-      );
-    return base + (teamsRequired >= 2 ? perHandBonus + goldBonus : 0);
-  }, [state.teams, team1Eval, evalCtx, perHandBonus, goldBonus, teamsRequired]);
-
-  // 为满阵队伍也叠加"手握百员"（evaluateHand 已含 gold-to-prowess）
+  // 每队军势 = evaluateHand 结果 × (1 + 手握百员)；空队伍 → 0
+  // （evaluateHand 已包含阵法倍率、同心、桃园、散金养士等全部加成）
   const team0PowerFinal = useMemo(() => {
-    if (!team0Eval) return team0PartialPower;
+    if (!team0Eval) return 0;
     return team0Eval.power + perHandBonus;
-  }, [team0Eval, team0PartialPower, perHandBonus]);
+  }, [team0Eval, perHandBonus]);
   const team1PowerFinal = useMemo(() => {
-    if (!team1Eval) return team1PartialPower;
+    if (!team1Eval) return 0;
     return team1Eval.power + (teamsRequired >= 2 ? perHandBonus : 0);
-  }, [team1Eval, team1PartialPower, perHandBonus, teamsRequired]);
+  }, [team1Eval, perHandBonus, teamsRequired]);
 
   const totalPower =
     team0PowerFinal + (teamsRequired >= 2 ? team1PowerFinal : 0);
@@ -223,9 +192,9 @@ export default function App() {
     (team0Eval?.isFlush ?? false) || (teamsRequired >= 2 && (team1Eval?.isFlush ?? false));
 
   // 监测牌型首次触发 → 播放特效
-  // 策略：每当 team0/team1 的 (rankType.key + isFlush + 队伍配置) 签名变化时，选择最高等级的那个触发特效
+  // 策略：每当 team0/team1 的 (rankType.key + isFlush + 队伍配置) 签名变化时，选择最高等级的那个触发特效。
+  // 阵法检测按条件匹配即触发（不再要求 5 张），因此部分布阵也可能命中。
   useEffect(() => {
-    // 只有 5 张时才可能触发
     const candidates: { key: RankTypeKey; name: string; flush: boolean; score: number }[] = [];
     if (team0Eval)
       candidates.push({

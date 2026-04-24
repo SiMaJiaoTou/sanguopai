@@ -16,7 +16,6 @@ const MAX_W = 96;
 const RATIO = 136 / 96;
 
 export function TeamPanel({ teamIndex, cards, evalResult }: Props) {
-  const full = cards.every((c) => c !== null);
   // 高倍率判定：点数值 ≥ 6 或达成同花
   const highlight = !!evalResult && (evalResult.rankType.score >= 6 || evalResult.isFlush);
 
@@ -67,7 +66,7 @@ export function TeamPanel({ teamIndex, cards, evalResult }: Props) {
               {teamIndex === 0 ? '前军' : '后军'}
             </div>
           </div>
-          {full && evalResult ? (
+          {evalResult ? (
             <div className="flex items-center gap-1.5 flex-wrap">
               <motion.span
                 key={evalResult.rankType.key}
@@ -111,14 +110,14 @@ export function TeamPanel({ teamIndex, cards, evalResult }: Props) {
                 highlight ? 'text-gold-grad animate-shine' : 'text-amber-100',
               ].join(' ')}
             >
-              {full && evalResult ? evalResult.power : 0}
+              {evalResult ? evalResult.power : 0}
             </motion.div>
           </AnimatePresence>
         </div>
       </div>
 
       {/* 算法拆解反馈：点数和 × (牌型值 + 同花) = 战力 */}
-      {full && evalResult && (
+      {evalResult && (
         <motion.div
           layout
           initial={{ opacity: 0, y: -4 }}
