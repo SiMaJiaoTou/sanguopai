@@ -342,19 +342,22 @@ export class NetworkClient {
 
 /** 根据当前页面 URL 猜默认 relay URL */
 function inferDefaultUrl(): string {
+  // 1. 本地开发（vite dev）→ 走本机 8787
+  if (typeof window !== 'undefined') {
+    const loc = window.location;
+    if (
+      loc.hostname === 'localhost' ||
+      loc.hostname === '127.0.0.1' ||
+      loc.hostname === ''
+    ) {
+      return `ws://${loc.hostname || 'localhost'}:8787`;
+    }
+  }
+  // 2. 允许用 VITE_RELAY_URL 环境变量覆盖（可选）
   const envUrl = (import.meta as any)?.env?.VITE_RELAY_URL;
   if (envUrl && typeof envUrl === 'string') return envUrl;
-  if (typeof window === 'undefined') return 'ws://localhost:8787';
-  const loc = window.location;
-  if (
-    loc.hostname === 'localhost' ||
-    loc.hostname === '127.0.0.1' ||
-    loc.hostname === ''
-  ) {
-    return `ws://${loc.hostname || 'localhost'}:8787`;
-  }
-  const scheme = loc.protocol === 'https:' ? 'wss' : 'ws';
-  return `${scheme}://${loc.host}/ws`;
+  // 3. 线上默认：写死 Render 上的中继
+  return 'wss://sanguopai.onrender.com';
 }
 
 // 单例导出
