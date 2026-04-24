@@ -51,20 +51,28 @@ network.subscribe({
     }
   },
   // host 断线导致中继把自己升为新 host —— 权威状态无法从 privacy-masked
-  // 的 ClientView 完整重建，因此直接终止本局，把所有人退回主菜单。
+  // 的 ClientView 完整重建，因此直接终止本局。
+  // 关键：我们现在有了 host 身份，先用一次广播 kick 把所有其他客户端一并请走，
+  // 避免"自己 leaveRoom → relay 再升别人 → 别人又走 → 级联提升" 这种雪崩。
+  // （之前观察到 8 人房里 6 个人被依次升成 host 然后秒退）
   onPromoted: () => {
-    console.warn('[sess] promoted to host after host disconnect — aborting session');
+    console.warn('[sess] promoted to host after host disconnect — notifying all and aborting');
+    // 广播 kick 给其他所有 client（target 不填 = 广播给非 host 的所有人）
+    try {
+      network.sendHostEvent({
+        t: 'kick',
+        reason: '主公已断线 · 本局已中断',
+      });
+    } catch (e) {
+      console.warn('[sess] failed to broadcast end-game kick', e);
+    }
     abortSession('主公已断线 · 本局已中断');
   },
-  // 别的玩家离开；如果带着 newHostId（意味着离开的是原 host），其他
-  // 非被提升的 client 也要同步中断（和 onPromoted 里的逻辑对称）
-  onPeerLeft: (_peerId, newHostId) => {
-    if (!newHostId) return;
-    if (!hostEngine && newHostId !== useLobbyStore.getState().myPeerId) {
-      console.warn('[sess] original host left — aborting session');
-      abortSession('主公已断线 · 本局已中断');
-    }
-  },
+  // 别的玩家离开；不在这里做 abort 决定。
+  // 原 host 离开时，relay 会把"第 2 进房者"升为新 host，并给他们发 'promoted'。
+  // 那位会在 onPromoted 里先 broadcast kick 给所有 client，再自己 abort。
+  // 如果在这里也 abort 会和 onPromoted 广播的 kick 形成竞态（早走的那批人
+  // 关了 socket，又让 relay 继续提升下一个人，引发级联）。
   // 游戏中连接被打断的兜底：
   //  · 断网后自动重连成功，但中继已重启导致房间消失 → ROOM_NOT_FOUND
   //  · 中继完全连不上，重连 15 次仍失败 → unreachable
