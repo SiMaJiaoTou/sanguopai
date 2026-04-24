@@ -16,7 +16,7 @@ import type { ClientView } from './roomTypes';
 let hostEngine: HostEngine | null = null;
 let clientSession: ClientSession | null = null;
 
-// ---- 永远订阅 state hostEvent，即便还没"正式 startSession" ----
+// ---- 永远订阅 state/kick hostEvent，即便还没"正式 startSession" ----
 // 原因：host 可能在客户端还没进入 inGame 屏幕时就发 state 广播；
 // 提前订阅可确保 view 不丢包。只要当前玩家不是 host，就把 state 写进 roomStore。
 network.subscribe({
@@ -35,6 +35,15 @@ network.subscribe({
       if (!lobby.isHost && !clientSession && !hostEngine) {
         startSession();
       }
+    }
+    if (payload.t === 'kick') {
+      // host 拒绝我们留在房间（通常是迟到）→ 退回主菜单，显示原因
+      console.warn(`[sess] kicked by host: ${payload.reason}`);
+      stopSession();
+      const lobby = useLobbyStore.getState();
+      lobby.leaveRoom();
+      // leaveRoom 会把 lastError 清空，所以放在其后
+      useLobbyStore.getState()._setError(`被请离房间：${payload.reason}`);
     }
   },
 });

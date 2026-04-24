@@ -49,6 +49,21 @@ export class HostEngine {
   start() {
     const off = network.subscribe({
       onPeerJoined: (peer) => {
+        // 游戏已开始后加入的 peer 不进座，避免把已发牌的 AI 座位"抢"成
+        // 空手人类、导致 allReady 永远不成立。直接 kick 掉来迟者。
+        if (this.room.phase !== 'lobby') {
+          console.info(
+            `[host] late join kicked: ${peer.name} (${peer.id}) · phase=${this.room.phase}`,
+          );
+          network.sendHostEvent(
+            {
+              t: 'kick',
+              reason: '房间已开战，无法中途加入',
+            },
+            peer.id,
+          );
+          return;
+        }
         this.room = joinPlayer(this.room, peer.id, peer.name);
         this.broadcast();
       },

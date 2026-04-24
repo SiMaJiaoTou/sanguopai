@@ -48,7 +48,9 @@ export type HostEvent =
   // 广播：对战结果（客户端播动画）
   | { t: 'duel'; payload: unknown }
   // 系统公告
-  | { t: 'toast'; msg: string };
+  | { t: 'toast'; msg: string }
+  // host 告知某 peer："你不能留在本房间"，client 应退回大厅
+  | { t: 'kick'; reason: string };
 
 // -------------------- Client → Relay --------------------
 export type ClientMsg =
