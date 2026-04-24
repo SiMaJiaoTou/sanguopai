@@ -46,6 +46,31 @@ network.subscribe({
       useLobbyStore.getState()._setError(`被请离房间：${payload.reason}`);
     }
   },
+  // host 断线导致中继把自己升为新 host —— 权威状态无法从 privacy-masked
+  // 的 ClientView 完整重建（其他玩家手牌已被裁剪成 []），因此直接终止本局，
+  // 把所有人退回主菜单，避免玩家看到"游戏挂着但谁都动不了"的假死状态。
+  onPromoted: () => {
+    console.warn('[sess] promoted to host after host disconnect — aborting session');
+    stopSession();
+    const lobby = useLobbyStore.getState();
+    lobby.leaveRoom();
+    useLobbyStore.getState()._setError('主公已断线 · 本局已中断');
+  },
+  // 别的玩家离开；如果带着 newHostId（意味着离开的是原 host），其他
+  // 非被提升的 client 也要同步中断（和 onPromoted 里的逻辑对称）
+  onPeerLeft: (_peerId, newHostId) => {
+    if (newHostId && !hostEngine) {
+      const lobby = useLobbyStore.getState();
+      // 被提升为 host 的玩家会走 onPromoted 分支；我们这里只处理"原 host 走了
+      // 但自己不是接任者"的情况
+      if (newHostId !== lobby.myPeerId) {
+        console.warn('[sess] original host left — aborting session');
+        stopSession();
+        lobby.leaveRoom();
+        useLobbyStore.getState()._setError('主公已断线 · 本局已中断');
+      }
+    }
+  },
 });
 
 /** 给 UI 调用：无论是 host 还是 client，都统一通过这里派发 action */
