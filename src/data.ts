@@ -192,7 +192,7 @@ export const FINAL_ROUND = 6;
 
 /** 经济系统配置（便于策划后续调参） */
 export const ECONOMY_CONFIG = {
-  initialGold: 4,          // 开局初始金币
+  initialGold: 10,         // 开局初始金币（第 0 年起手持有）
   baseIncomePerYear: 3,    // 每回合基础收入（ROUND_CONFIGS 里 yearIncome 已细化，此项为回退默认）
   buyCardBasePrice: 1,     // 第 1 次买牌价格
   buyCardPriceDelta: 1,    // 每多买 1 次 +1 金币

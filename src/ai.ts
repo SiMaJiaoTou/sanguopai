@@ -48,7 +48,7 @@ export function createInitialAIs(): AIState[] {
       [null, null, null, null, null],
       [null, null, null, null, null],
     ],
-    gold: 4,
+    gold: 10,
     recruitLevel: 1,
     recruitExp: 0,
     buyCount: 0,

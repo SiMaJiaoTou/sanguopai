@@ -286,7 +286,7 @@ function startGame(room: RoomState): RoomState {
         isAI: true,
         aiPersona: persona,
         name: persona.name,
-        gold: 4,
+        gold: ECONOMY_CONFIG.initialGold,
         hp: INITIAL_HP,
       };
     } else {
