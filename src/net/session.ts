@@ -42,11 +42,16 @@ network.subscribe({
 /** 给 UI 调用：无论是 host 还是 client，都统一通过这里派发 action */
 export function dispatchGameAction(action: GameAction) {
   if (hostEngine) {
+    console.info(`[sess] dispatch(host) ${action.type}`);
     hostEngine.dispatchSelf(action);
   } else if (clientSession) {
+    console.info(`[sess] dispatch(client→host) ${action.type}`);
     clientSession.dispatch(action);
   } else {
-    // 未启动 session（非房间态），忽略
+    console.warn(
+      `[sess] dispatch DROPPED (no engine) ${action.type}`,
+      action,
+    );
   }
 }
 

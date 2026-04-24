@@ -80,10 +80,18 @@ export class HostEngine {
   }
 
   private handleIntent(from: string, action: GameAction) {
+    console.info(
+      `[host] handleIntent from=${from === this.myPeerId ? 'self' : from} action=${action.type}`,
+    );
+    const before = this.room.phase;
     this.room = applyAction(this.room, from, action);
+    console.info(
+      `[host]   phase: ${before} → ${this.room.phase} (round=${this.room.round})`,
+    );
 
     // ---- 阶段推进 ----
     if (this.room.phase === 'prep' && allReady(this.room)) {
+      console.info(`[host]   allReady → advanceRound`);
       this.room = advanceRound(this.room);
     } else if (this.room.phase === 'talent') {
       this.room = maybeExitTalent(this.room);
@@ -97,11 +105,18 @@ export class HostEngine {
     useRoomStore.getState().setView(myView);
 
     // 给每个其他玩家定点发
+    let recipients = 0;
     for (const p of this.room.players) {
       if (!p.peerId || !p.connected || p.peerId === this.myPeerId) continue;
       const view = buildClientView(this.room, p.peerId);
       network.sendHostEvent({ t: 'state', state: view }, p.peerId);
+      recipients++;
     }
+    console.info(
+      `[host] broadcast phase=${this.room.phase} round=${this.room.round} handSize(self)=${
+        myView.players.find((p) => p.isSelf)?.hand.length ?? 0
+      } peers→${recipients}`,
+    );
   }
 }
 

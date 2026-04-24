@@ -345,6 +345,7 @@ export default function App() {
 
   // 联机专属：host 擂鼓启动实际对局（洗牌发手牌）
   const handleStartOnlineGame = () => {
+    console.info('[ui] host clicked 擂鼓·发牌');
     dispatchGameAction({ type: 'startGame' });
   };
 
@@ -749,7 +750,10 @@ function StartGameHostPrompt({ dispatch }: { dispatch: () => void }) {
           —— 洗牌发令 · 诸将就位 ——
         </div>
         <button
-          onClick={dispatch}
+          onClick={(e) => {
+            console.info('[ui] StartGameHostPrompt button onClick', e);
+            dispatch();
+          }}
           className="btn-seal btn-seal-gold px-10 py-3 text-base tracking-[0.35em] relative overflow-hidden"
         >
           <div className="text-[15px] leading-none">擂 鼓 · 发 牌</div>
