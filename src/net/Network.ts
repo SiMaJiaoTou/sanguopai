@@ -40,7 +40,8 @@ export interface NetworkListener {
 
 const HEARTBEAT_INTERVAL_MS = 10_000;
 const RECONNECT_DELAY_MS = 2_000;
-const MAX_RECONNECT_ATTEMPTS = 4; // 达到后停止，状态置 unreachable，要用户介入
+// 免费云平台（Render / Fly 休眠档）冷启动可能 20~30 秒，给足重试窗口
+const MAX_RECONNECT_ATTEMPTS = 15; // 达到后停止，状态置 unreachable，要用户介入
 
 const LOG_PREFIX = '[net]';
 
