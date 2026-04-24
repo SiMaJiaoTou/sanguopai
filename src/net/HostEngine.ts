@@ -68,7 +68,15 @@ export class HostEngine {
         this.broadcast();
       },
       onPeerLeft: (peerId) => {
-        this.room = markPeerGone(this.room, peerId, /*hard=*/ true);
+        // 大厅阶段 → 清空座位（hardLeave=true）
+        // 游戏中 → AI 托管，保留已发牌 / 金币 / 等级（hardLeave=false）
+        // 否则座位变成空手人类，allReady 永远不成立，全房卡死
+        const hardLeave = this.room.phase === 'lobby';
+        this.room = markPeerGone(this.room, peerId, hardLeave);
+        // 断线后也要复查阶段推进：
+        //  · prep 且所有活着的人类都 ready → advanceRound
+        //  · talent 且被托管的玩家已标 ready=true → maybeExitTalent
+        this.maybeAdvance();
         this.broadcast();
       },
       onIntent: (from, action) => this.handleIntent(from, action),
@@ -93,14 +101,17 @@ export class HostEngine {
 
   private handleIntent(from: string, action: GameAction) {
     this.room = applyAction(this.room, from, action);
+    this.maybeAdvance();
+    this.broadcast();
+  }
 
-    // ---- 阶段推进 ----
+  /** 统一的阶段推进检查 —— intent 处理完 / peer 断线托管后都会走 */
+  private maybeAdvance() {
     if (this.room.phase === 'prep' && allReady(this.room)) {
       this.room = advanceRound(this.room);
     } else if (this.room.phase === 'talent') {
       this.room = maybeExitTalent(this.room);
     }
-    this.broadcast();
   }
 
   private broadcast() {

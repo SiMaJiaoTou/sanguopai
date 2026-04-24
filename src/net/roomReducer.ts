@@ -196,7 +196,10 @@ export function markPeerGone(
       name: slot.name || '诸侯',
       title: '托管',
     },
+    // AI 托管者视作已就绪 / 已放弃天赐选择 —— 避免阻塞阶段推进
     ready: true,
+    pendingTalentChoices: null,
+    pendingTalentRound: null,
   });
 }
 

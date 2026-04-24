@@ -304,9 +304,11 @@ export default function App() {
 
   const handleRestart = () => {
     if (isOnline) {
-      // 联机：返回大厅
+      // 联机：彻底退出 —— 停引擎 + 关闭 WebSocket + 回主菜单
+      // 只调 stopSession + setScreen 会让 WS 连着，relay 里还留着 peer 记录，
+      // 下次"创建 / 加入房间"会被 relay 以 ALREADY_IN_ROOM 挡回
       stopSession();
-      setLobbyScreen('main');
+      useLobbyStore.getState().leaveRoom();
       return;
     }
     state.startNewGame();
@@ -343,6 +345,9 @@ export default function App() {
           isHost={isHost}
           peerCount={peers.length}
           onLeave={() => {
+            // 撤旗：先停 session（否则 HostEngine/ClientSession 还在处理事件），
+            // 再调 leaveRoom 关闭 WS 并回主菜单
+            stopSession();
             useLobbyStore.getState().leaveRoom();
           }}
         />
