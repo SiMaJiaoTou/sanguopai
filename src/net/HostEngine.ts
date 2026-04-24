@@ -118,6 +118,7 @@ export function buildClientView(
     myPeerId: forPeerId,
     players: room.players.map((p) => mapPlayer(p, forPeerId)),
     myPowerHistory: room.powerHistoryByPeer[forPeerId] ?? [],
+    deck: room.deck,
     duelLog: room.duelLog,
     lastMessage: room.lastMessage,
   };

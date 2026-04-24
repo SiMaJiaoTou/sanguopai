@@ -353,8 +353,6 @@ export default function App() {
     state.deck.forEach((c) => (m[c.faction] += 1));
     return m;
   }, [state.deck]);
-  // 联机不显示牌库张数（host 不广播 deck）
-  const showDeckStats = !isOnline;
 
   const expNeed =
     state.recruitLevel >= 6 ? Infinity : LEVEL_EXP_REQUIRED[state.recruitLevel];
@@ -464,27 +462,24 @@ export default function App() {
             {/* 操作区 */}
             <div className="flex items-center justify-between gap-3 flex-wrap relative rounded-lg wood-light px-4 py-3 border-4 border-amber-950 shadow-card-deep">
               <div className="flex items-center gap-2 text-xs text-amber-100/80 flex-wrap font-kai">
-                {showDeckStats ? (
-                  <>
-                    <span>
-                      牌库{' '}
-                      <span className="text-gold-grad font-black tabular-nums">
-                        {state.deck.length}
-                      </span>
-                    </span>
-                    {(['魏', '蜀', '吴', '群'] as const).map((f) => (
-                      <span
-                        key={f}
-                        className={`px-2 py-0.5 rounded ${FACTION_THEME[f].bg} ${FACTION_THEME[f].accent} border border-amber-900 text-[11px] font-black`}
-                        style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1)' }}
-                      >
-                        {f} {factionCount[f]}
-                      </span>
-                    ))}
-                  </>
-                ) : (
-                  <span className="italic text-amber-200/55 tracking-widest">
-                    · 联机对局 · 共享牌库不可见 ·
+                <span>
+                  牌库{' '}
+                  <span className="text-gold-grad font-black tabular-nums">
+                    {state.deck.length}
+                  </span>
+                </span>
+                {(['魏', '蜀', '吴', '群'] as const).map((f) => (
+                  <span
+                    key={f}
+                    className={`px-2 py-0.5 rounded ${FACTION_THEME[f].bg} ${FACTION_THEME[f].accent} border border-amber-900 text-[11px] font-black`}
+                    style={{ boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.1)' }}
+                  >
+                    {f} {factionCount[f]}
+                  </span>
+                ))}
+                {isOnline && (
+                  <span className="italic text-amber-200/55 tracking-widest ml-1">
+                    · 群雄共此牌库 ·
                   </span>
                 )}
               </div>
@@ -608,8 +603,8 @@ export default function App() {
       </AnimatePresence>
 
       {/* 牌库抽屉（右下角固定按钮 + 弹出抽屉） */}
-      {/* 牌库抽屉：仅单机时显示（联机牌库由 host 保管） */}
-      {!isOnline && <DeckDrawer deck={state.deck} />}
+      {/* 单机 & 联机都显示：联机时 deck 由 host 实时广播 */}
+      <DeckDrawer deck={state.deck} />
 
       {/* GM 调试工具（仅单机） */}
       {!isOnline && (

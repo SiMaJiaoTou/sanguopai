@@ -105,6 +105,9 @@ export interface ClientView {
   /** 仅自己的历史 */
   myPowerHistory: PowerSnapshot[];
 
+  /** 共享牌库的剩余卡（全房公开实时同步） */
+  deck: Card[];
+
   duelLog: RoomState['duelLog'];
   lastMessage: string | null;
 }

@@ -142,7 +142,7 @@ export function useUnifiedGame(): UnifiedGame {
       pendingTalentChoices: myView.pendingTalentChoices,
       pendingTalentRound: myView.pendingTalentRound,
       doubleThisRoundActive: myView.doubleThisRoundActive,
-      deck: [], // host 不把 deck 广播；玩家只能看自己摸到的
+      deck: view.deck, // 共享牌库，实时同步
       ais: toAiLikes(view),
       duelLog: view.duelLog,
       myId: view.myPeerId,
