@@ -41,56 +41,91 @@ network.subscribe({
 
 /** 给 UI 调用：无论是 host 还是 client，都统一通过这里派发 action */
 export function dispatchGameAction(action: GameAction) {
-  if (hostEngine) {
-    console.info(`[sess] dispatch(host) ${action.type}`);
-    hostEngine.dispatchSelf(action);
-  } else if (clientSession) {
-    console.info(`[sess] dispatch(client→host) ${action.type}`);
-    clientSession.dispatch(action);
-  } else {
-    console.warn(
-      `[sess] dispatch DROPPED (no engine) ${action.type}`,
-      action,
-    );
+  console.info(
+    `[sess] dispatchGameAction CALLED type=${action.type} hostEngine=${!!hostEngine} clientSession=${!!clientSession}`,
+  );
+  try {
+    if (hostEngine) {
+      console.info(`[sess] → host.dispatchSelf ${action.type}`);
+      hostEngine.dispatchSelf(action);
+    } else if (clientSession) {
+      console.info(`[sess] → client.dispatch ${action.type}`);
+      clientSession.dispatch(action);
+    } else {
+      console.warn(
+        `[sess] DROPPED (no engine) ${action.type}`,
+        action,
+        `lobby:`,
+        useLobbyStore.getState(),
+      );
+    }
+  } catch (err) {
+    console.error(`[sess] dispatch threw:`, err);
   }
 }
 
 /** 由 App.tsx 调用：进入游戏屏幕时启动。幂等：已在正确角色则不做任何事。 */
 export function startSession() {
   const lobby = useLobbyStore.getState();
-  if (!lobby.roomCode || !lobby.myPeerId) return;
+  console.info(
+    `[sess] startSession() isHost=${lobby.isHost} roomCode=${lobby.roomCode} peerId=${lobby.myPeerId} hostEngine=${!!hostEngine} clientSession=${!!clientSession}`,
+  );
+  if (!lobby.roomCode || !lobby.myPeerId) {
+    console.warn(`[sess] startSession ABORT: no roomCode/peerId`);
+    return;
+  }
   const wantHost = lobby.isHost;
 
   // 角色匹配 → 已在跑，忽略
-  if (wantHost && hostEngine) return;
-  if (!wantHost && clientSession) return;
+  if (wantHost && hostEngine) {
+    console.info(`[sess] startSession: host engine already running, noop`);
+    return;
+  }
+  if (!wantHost && clientSession) {
+    console.info(`[sess] startSession: client session already running, noop`);
+    return;
+  }
 
   // 角色不匹配（例如 host 迁移后重建）→ 关掉错误角色的引擎，但不清 view，
   // 避免把前序广播过来的 ClientView 冲掉
   if (hostEngine) {
+    console.info(`[sess] startSession: tearing down stale hostEngine`);
     hostEngine.stop();
     hostEngine = null;
   }
   if (clientSession) {
+    console.info(`[sess] startSession: tearing down stale clientSession`);
     clientSession.stop();
     clientSession = null;
   }
 
   if (wantHost) {
-    hostEngine = new HostEngine(
-      lobby.roomCode,
-      lobby.myPeerId,
-      lobby.nickname || '主公',
-    );
-    hostEngine.start();
+    try {
+      hostEngine = new HostEngine(
+        lobby.roomCode,
+        lobby.myPeerId,
+        lobby.nickname || '主公',
+      );
+      hostEngine.start();
+      console.info(`[sess] HostEngine created and started`);
+    } catch (err) {
+      console.error(`[sess] HostEngine construction threw:`, err);
+      hostEngine = null;
+    }
   } else {
     clientSession = new ClientSession();
     clientSession.start();
+    console.info(`[sess] ClientSession created and started`);
   }
 }
 
 /** 完全结束联机会话：停引擎 + 清空 view（返回大厅时用） */
 export function stopSession() {
+  if (hostEngine || clientSession) {
+    console.info(
+      `[sess] stopSession() hostEngine=${!!hostEngine} clientSession=${!!clientSession}`,
+    );
+  }
   if (hostEngine) {
     hostEngine.stop();
     hostEngine = null;

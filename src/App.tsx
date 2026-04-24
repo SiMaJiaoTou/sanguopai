@@ -346,7 +346,13 @@ export default function App() {
   // 联机专属：host 擂鼓启动实际对局（洗牌发手牌）
   const handleStartOnlineGame = () => {
     console.info('[ui] host clicked 擂鼓·发牌');
-    dispatchGameAction({ type: 'startGame' });
+    console.info('[ui] dispatchGameAction type:', typeof dispatchGameAction);
+    try {
+      dispatchGameAction({ type: 'startGame' });
+      console.info('[ui] dispatchGameAction returned');
+    } catch (e) {
+      console.error('[ui] dispatchGameAction THREW:', e);
+    }
   };
 
   const factionCount = useMemo(() => {
