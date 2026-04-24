@@ -26,7 +26,9 @@ export function FormationBroadcast({ teamEvals }: Props) {
   useEffect(() => {
     for (let i = 0; i < teamEvals.length; i++) {
       const ev = teamEvals[i];
-      const sig = ev ? `${ev.rankType.key}|${ev.isFlush}` : null;
+      // 散阵（HIGH_CARD）tier 太低，既不触发特效也不播报 banner，避免刷屏
+      const shouldBroadcast = ev && ev.rankType.key !== 'HIGH_CARD';
+      const sig = shouldBroadcast ? `${ev!.rankType.key}|${ev!.isFlush}` : null;
       const prev = lastSigs.current[i] ?? null;
       if (sig !== prev) {
         lastSigs.current[i] = sig;

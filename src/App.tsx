@@ -220,7 +220,7 @@ export default function App() {
     const sig = `${top.key}|${top.flush}`;
     if (sig === lastEffectSig.current) return;
     lastEffectSig.current = sig;
-    // 散牌 / 一对 不触发特效（tier 太低，避免刷屏）
+    // 散阵（HIGH_CARD）tier 太低不触发特效，避免每放一张牌就刷屏
     if (top.key === 'HIGH_CARD') return;
     setEffect(buildEffect(top.key, top.name, top.flush));
   }, [team0Eval, team1Eval, teamsRequired]);
