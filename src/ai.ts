@@ -48,7 +48,7 @@ export function createInitialAIs(): AIState[] {
       [null, null, null, null, null],
       [null, null, null, null, null],
     ],
-    gold: 10,
+    gold: 0, // 初始金币设为 0，因为在第 0 轮 simulateAITurn 会自动加上 ROUND_CONFIGS[0].yearIncome (10金币)
     recruitLevel: 1,
     recruitExp: 0,
     buyCount: 0,
@@ -127,9 +127,9 @@ export interface AITurnResult {
 export function simulateAITurn(
   ai: AIState,
   deck: Card[],
-  nextRoundIdx: number,
+  currentRoundIdx: number,
 ): AITurnResult {
-  const cfg = ROUND_CONFIGS[nextRoundIdx];
+  const cfg = ROUND_CONFIGS[currentRoundIdx];
   if (!cfg) return { ai, deck, totalPower: ai.lastTotalPower };
 
   let workingDeck = deck.slice();
@@ -159,12 +159,14 @@ export function simulateAITurn(
   // AI 手牌规模上限（按阶段限制，强迫早期囤钱升本）：
   //   第 1 ~ 2 年（进入 round 1 / 2）：最多 7 张手牌，7 张之后只升本
   //   第 3 年以后（进入 round 3+）：最多 11 张手牌
-  const handCapByPhase = nextRoundIdx <= 2 ? 7 : 11;
+  const handCapByPhase = currentRoundIdx <= 2 ? 7 : 11;
   // 若本年需要的上阵槽位 > 上限（多队列时），至少保证能上满阵（+2 余量）
   const handCap = Math.max(handCapByPhase, slotsTotal + 2);
+  
+  console.log(`\n[AI 思考] ${nextAI.name} 开始回合 (第 ${currentRoundIdx} 年) | 金币: ${nextAI.gold}, 免费刷新: ${nextAI.freeRedrawsLeft}, 等级: ${nextAI.recruitLevel}`);
 
   // ===== 2) 主动花金币升等级（达到目标前不停） =====
-  const target = targetRecruitLevel(nextRoundIdx);
+  const target = targetRecruitLevel(currentRoundIdx);
   // 为避免把所有钱都花光，升级预算 ≤ 当前金币的 60%
   const upgradeBudgetCap = Math.floor(nextAI.gold * 0.6);
   let upgradeSpent = 0;
@@ -182,8 +184,10 @@ export function simulateAITurn(
       nextAI.recruitLevel = (nextAI.recruitLevel + 1) as RecruitLevel;
       if (nextAI.recruitLevel >= 6) {
         nextAI.recruitExp = 0;
+        console.log(`[AI 操作] ${nextAI.name} 强制升本 -> 达到目标 Lv.6`);
         break;
       }
+      console.log(`[AI 操作] ${nextAI.name} 强制升本 -> Lv.${nextAI.recruitLevel}`);
     }
   }
 
@@ -295,13 +299,17 @@ export function simulateAITurn(
       }
     }
 
-    if (!bestAction || bestGain <= 0) break;
+    if (!bestAction || bestGain <= 0) {
+      console.log(`[AI 思考] ${nextAI.name} 决策结束: 无有效正向收益动作。`);
+      break;
+    }
 
     // 执行最优动作
     if (bestAction === 'buy') {
       const price = aiBuyCardPrice(nextAI.buyCount);
       const r = drawOneUnlockedFromDeck(workingDeck, nextAI.recruitLevel);
       if (!r.card) {
+        console.log(`[AI 放弃] ${nextAI.name} 牌池已空，无法买牌`);
         // 池子空了，没得买 → 退出买卡
         break;
       }
@@ -309,6 +317,7 @@ export function simulateAITurn(
       nextAI.hand.push(r.card);
       nextAI.gold -= price;
       nextAI.buyCount += 1;
+      console.log(`[AI 操作] ${nextAI.name} 购买牌: ${r.card.name} (花费 ${price} 金, 预期收益: ${bestGain.toFixed(1)})`);
     } else if (bestAction === 'redraw') {
       // 把最差的一张换掉
       const sortedHand = nextAI.hand
@@ -328,8 +337,11 @@ export function simulateAITurn(
       workingDeck = r.rest;
       nextAI.hand.push(r.card);
       // 结算换牌成本
+      const costUsed = nextAI.freeRedrawsLeft > 0 ? '1免费刷新' : '2金币';
       if (nextAI.freeRedrawsLeft > 0) nextAI.freeRedrawsLeft -= 1;
       else nextAI.gold -= PAID_REDRAW_COST;
+      
+      console.log(`[AI 操作] ${nextAI.name} 换牌: 弃用 ${removed.name}, 获得 ${r.card.name} (花费 ${costUsed}, 预期收益: ${bestGain.toFixed(1)})`);
 
       // 如果换完战力反而下降，记录但仍保留（随机性的一部分）
       const afterBest = estimateBestPower(nextAI.hand);
@@ -343,7 +355,12 @@ export function simulateAITurn(
       if (nextAI.recruitExp >= need) {
         nextAI.recruitExp -= need;
         nextAI.recruitLevel = (nextAI.recruitLevel + 1) as RecruitLevel;
-        if (nextAI.recruitLevel >= 6) nextAI.recruitExp = 0;
+        if (nextAI.recruitLevel >= 6) {
+          nextAI.recruitExp = 0;
+        }
+        console.log(`[AI 操作] ${nextAI.name} 升级 -> Lv.${nextAI.recruitLevel}`);
+      } else {
+        console.log(`[AI 操作] ${nextAI.name} 投资升级经验 -> ${nextAI.recruitExp}/${need}`);
       }
     }
   }
@@ -362,6 +379,10 @@ export function simulateAITurn(
   const power1 = teamsNeed >= 2 ? teamPowerOf(nextAI.teams[1]) : 0;
   const total = power0 + power1;
   nextAI.lastTotalPower = total;
+  
+  console.log(`[AI 结果] ${nextAI.name} 布阵完成 | 总战力: ${total} \n` +
+              `          Team 0 (${power0}): ${nextAI.teams[0].filter(c=>c).map(c=>c!.name).join(', ') || '空'}\n` +
+              (teamsNeed >= 2 ? `          Team 1 (${power1}): ${nextAI.teams[1].filter(c=>c).map(c=>c!.name).join(', ') || '空'}` : ''));
 
   return { ai: nextAI, deck: workingDeck, totalPower: total };
 }

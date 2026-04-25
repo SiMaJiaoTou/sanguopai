@@ -108,7 +108,7 @@ export function createInitialRoom(
       isAI: false,
       hand: [],
       teams: empty2x5(),
-      gold: 0,
+      gold: 0, // 初始金币设为 0，因为在第 0 轮 advanceRound 中 simulateAITurn 会加上第一笔收入
       buyCount: 0,
       recruitLevel: 1 as RecruitLevel,
       recruitExp: 0,
@@ -171,7 +171,7 @@ export function markPeerGone(
       isAI: false,
       hand: [],
       teams: empty2x5(),
-      gold: 0,
+      gold: 0, // 清空座位时重置为 0
       buyCount: 0,
       recruitLevel: 1 as RecruitLevel,
       recruitExp: 0,
@@ -290,7 +290,7 @@ function startGame(room: RoomState): RoomState {
         isAI: true,
         aiPersona: persona,
         name: persona.name,
-        gold: ECONOMY_CONFIG.initialGold,
+        gold: 0, // AI 的初始金币给 0，依靠 advanceRound 累加第 0 年工资
         hp: INITIAL_HP,
       };
     } else {
@@ -702,7 +702,8 @@ export function advanceRound(room: RoomState): RoomState {
         hp: p.hp,
         eliminatedAtRound: p.eliminatedAtRound,
       };
-      const r = simulateAITurn(aiState, deck, nextRoundIdx);
+      // 修复 AI 抢跑 BUG：传入 currentRound (当前回合) 而不是 nextRoundIdx
+      const r = simulateAITurn(aiState, deck, currentRound);
       deck = r.deck;
       newPlayers[i] = {
         ...p,

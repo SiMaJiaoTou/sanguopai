@@ -327,18 +327,6 @@ function WarFlag({
           />
         </mesh>
       </group>
-
-      {/* === 中部飘带 === */}
-      <mesh ref={ribbonRef} position={[0, poleH * 0.45, 0]}>
-        <planeGeometry args={[0.14, 0.42]} />
-        <meshStandardMaterial
-          color={m.flagLight}
-          side={THREE.DoubleSide}
-          roughness={0.5}
-          emissive={m.flagLight}
-          emissiveIntensity={0.15}
-        />
-      </mesh>
     </group>
   );
 }

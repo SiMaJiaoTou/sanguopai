@@ -585,7 +585,9 @@ export const useGameStore = create<GameState>((set, get) => ({
         newAIs.push(ai);
         continue;
       }
-      const r = simulateAITurn(ai, workingDeck, nextRoundIdx);
+      // 修复 AI 抢跑 BUG：传入 state.round (当前回合) 而不是 nextRoundIdx
+      // 让 AI 只能拿当年的工资买牌，和玩家保持同一起跑线
+      const r = simulateAITurn(ai, workingDeck, state.round);
       workingDeck = r.deck;
       newAIs.push(r.ai);
     }
