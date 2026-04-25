@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
 import { PerspectiveCamera, Text, Cylinder, Plane, Html, Billboard } from '@react-three/drei';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { AnimatePresence, motion } from 'framer-motion';
 import * as THREE from 'three';
-import type { Card, EvaluateResult, Faction } from '../types';
-import { FORMATIONS } from '../formations';
+import type { Card, EvaluateResult, Faction, TroopType } from '../types';
+import { FORMATIONS, type Formation } from '../formations';
 import { HorseSealBadge } from './HorseSealBadge';
+import { TroopIcon } from './TroopIcon';
 
 interface Props {
   teamIndex: number;
@@ -65,15 +66,13 @@ const FACTION_MAT: Record<
   },
 };
 
-// 5 槽位布局：参考图的 2×3 形式（后排 2 + 前排 3）
-// 世界坐标：Z 向屏幕里 = 负，越大越远
-// 注意：间距需 > TILE_W 以避免重叠
+// 5 槽位布局：默认与散阵 (HIGH_CARD) 保持一致
 const SLOT_LAYOUT: { x: number; z: number }[] = [
-  { x: -1.5125, z: -1.03125 }, // 0 后排左
-  { x: 1.5125, z: -1.03125 },  // 1 后排右
-  { x: -3.025, z: 1.03125 },   // 2 前排左
-  { x: 0, z: 1.03125 },        // 3 前排中
-  { x: 3.025, z: 1.03125 },    // 4 前排右
+  { x: -1.8, z: -2.5 },
+  { x: 2.2, z: -1.0 },
+  { x: -0.5, z: 0.8 },
+  { x: 1.0, z: 2.8 },
+  { x: -2.5, z: 1.2 },
 ];
 
 // 牌位尺寸（缩小以适配阵法最紧凑间距 1.0，如一字阵）
@@ -348,7 +347,7 @@ function WarFlag({
 // 武将圆徽章（左前角小立牌）
 // ======================================================================
 
-function CommanderMark({ faction, name }: { faction: Faction; name: string }) {
+function CommanderMark({ faction, name, troop }: { faction: Faction; name: string; troop: TroopType }) {
   const m = FACTION_MAT[faction];
 
   return (
@@ -402,7 +401,7 @@ function CommanderMark({ faction, name }: { faction: Faction; name: string }) {
         style={{ pointerEvents: 'none', userSelect: 'none' }}
       >
         <div
-          className="font-kai font-black whitespace-nowrap"
+          className="font-kai font-black whitespace-nowrap flex items-center gap-1.5"
           style={{
             padding: '2px 8px',
             borderRadius: 4,
@@ -417,7 +416,21 @@ function CommanderMark({ faction, name }: { faction: Faction; name: string }) {
             letterSpacing: '0.08em',
           }}
         >
-          {name}
+          <span
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#e5e7eb',
+              padding: '2px',
+              background: 'linear-gradient(180deg, #374151 0%, #111827 100%)',
+              border: '1px solid #6b7280',
+              borderRadius: 2,
+            }}
+          >
+            <TroopIcon troop={troop} size={12} color="#e5e7eb" />
+          </span>
+          <span>{name}</span>
         </div>
       </Html>
     </group>
@@ -538,6 +551,201 @@ function MapGround() {
 }
 
 // ======================================================================
+// 阵法连线特效
+// ======================================================================
+
+function DynamicLink({
+  idx1,
+  idx2,
+  targetPositions,
+  opacityRef,
+}: {
+  idx1: number;
+  idx2: number;
+  targetPositions: { x: number; z: number }[];
+  opacityRef: React.MutableRefObject<number>;
+}) {
+  const pointsRef = useRef<THREE.Points>(null);
+  const p1 = useMemo(() => new THREE.Vector3(), []);
+  const p2 = useMemo(() => new THREE.Vector3(), []);
+  
+  // 生成更多粒子来构成这条线，让线条更粗壮绵密
+  const PARTICLE_COUNT = 150;
+  
+  const particles = useMemo(() => {
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(PARTICLE_COUNT * 3);
+    // 随机初始相位，用于每个粒子的闪烁计算
+    const phases = new Float32Array(PARTICLE_COUNT);
+    
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      phases[i] = Math.random() * Math.PI * 2;
+    }
+    
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('phase', new THREE.BufferAttribute(phases, 1));
+    return geometry;
+  }, []);
+
+  const material = useMemo(() => {
+    // 高级质感：使用 AdditiveBlending 和自定义发光颜色（金色）
+    return new THREE.PointsMaterial({
+      color: '#ffffff',       // 基础色调到最白，光晕由贴图提供
+      size: 0.45,             // 再次加大粒子大小，使其更显眼
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      map: createGlowTexture(), // 自定义发光贴图
+    });
+  }, []);
+
+  useFrame((state) => {
+    if (opacityRef.current <= 0) {
+      if (pointsRef.current) pointsRef.current.visible = false;
+      return;
+    }
+    if (pointsRef.current) pointsRef.current.visible = true;
+
+    const a1 = targetPositions[idx1];
+    const a2 = targetPositions[idx2];
+    if (!a1 || !a2) return;
+
+    p1.set(a1.x, 0.08, a1.z); // 稍微抬高一点
+    p2.set(a2.x, 0.08, a2.z);
+
+    const positions = particles.attributes.position.array as Float32Array;
+    const phases = particles.attributes.phase.array as Float32Array;
+    const t = state.clock.getElapsedTime();
+    
+    const distance = p1.distanceTo(p2);
+
+    // 更新粒子位置，使其在两点之间分布，并加上流动和闪烁效果
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      // 基础进度 0~1
+      const progress = i / (PARTICLE_COUNT - 1);
+      
+      // 流动效果：让粒子在两点间缓慢移动，并循环
+      const flowProgress = (progress + t * 0.4) % 1.0;
+      
+      // 根据进度，两端收缩（抛物线轮廓），让线条呈现中间粗两端细的光束感
+      const widthProfile = Math.sin(flowProgress * Math.PI);
+      
+      const x = p1.x + (p2.x - p1.x) * flowProgress;
+      const y = p1.y + (p2.y - p1.y) * flowProgress;
+      const z = p1.z + (p2.z - p1.z) * flowProgress;
+      
+      // 添加螺旋扰动，让线看起来像能量流，振幅随宽度轮廓变化
+      // 每条线上加上一些乱数，让粒子不会完全挤在一条绝对直线上
+      const spread = 0.08 * widthProfile;
+      const noiseX = Math.sin(flowProgress * Math.PI * 8 + t * 3 + phases[i]) * spread;
+      const noiseZ = Math.cos(flowProgress * Math.PI * 8 + t * 3 + phases[i]) * spread;
+      // Y 轴也来一点波动，让能量线立体起来
+      const noiseY = Math.sin(flowProgress * Math.PI * 12 - t * 4 + phases[i]) * (spread * 0.5);
+
+      positions[i * 3] = x + noiseX;
+      positions[i * 3 + 1] = y + noiseY;
+      positions[i * 3 + 2] = z + noiseZ;
+    }
+    particles.attributes.position.needsUpdate = true;
+
+    // 整体透明度随时间波动，并且受 opacityRef（淡入淡出）控制
+    // 增加最低亮度，确保显眼
+    const globalPulse = (Math.sin(t * 8) * 0.2 + 0.8); 
+    material.opacity = opacityRef.current * globalPulse;
+  });
+
+  return (
+    <points ref={pointsRef} geometry={particles} material={material} visible={false} />
+  );
+}
+
+// 辅助函数：生成一个高对比度的径向渐变发光贴图，用于粒子
+function createGlowTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128; // 提高分辨率
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    // 核心是纯白的高亮
+    gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    gradient.addColorStop(0.1, 'rgba(255, 255, 255, 0.9)');
+    // 向外扩散成明亮的金橙色
+    gradient.addColorStop(0.3, 'rgba(251, 191, 36, 0.8)'); // #fbbf24
+    gradient.addColorStop(0.6, 'rgba(217, 119, 6, 0.4)');  // #d97706
+    // 边缘消散
+    gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 128, 128);
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  return texture;
+}
+
+function FormationLinks({
+  formation,
+  targetPositions,
+  burstKey,
+}: {
+  formation: Formation | null;
+  targetPositions: { x: number; z: number }[];
+  burstKey: string | null;
+}) {
+  const [animatingKey, setAnimatingKey] = useState<string | null>(null);
+  const [links, setLinks] = useState<[number, number][]>([]);
+  const opacityRef = useRef(0);
+  const timeRef = useRef(0);
+  
+  // 记录上一次真实触发动画的 key，防止单纯因为 React re-render（比如切换 tab）导致的重播
+  const lastTriggeredKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (burstKey && formation && formation.links && formation.links.length > 0) {
+      // 只有当 burstKey 发生变化时，才重新触发动画
+      if (burstKey !== lastTriggeredKey.current) {
+        lastTriggeredKey.current = burstKey;
+        setAnimatingKey(burstKey);
+        setLinks(formation.links);
+        opacityRef.current = 1;
+        timeRef.current = 0;
+      }
+    } else {
+      // 如果变成了散阵或空阵，重置
+      lastTriggeredKey.current = null;
+      opacityRef.current = 0;
+    }
+  }, [burstKey, formation]);
+
+  useFrame((state, delta) => {
+    if (opacityRef.current > 0) {
+      timeRef.current += delta;
+      // 保持显示 1.5 秒，然后在 2 秒内淡出，延长存在感
+      if (timeRef.current > 1.5) {
+        opacityRef.current -= delta * 0.5;
+        if (opacityRef.current < 0) opacityRef.current = 0;
+      }
+    }
+  });
+
+  if (!formation || links.length === 0) return null;
+
+  return (
+    <group>
+      {links.map((link, i) => (
+        <DynamicLink
+          key={`${animatingKey}-${i}`}
+          idx1={link[0]}
+          idx2={link[1]}
+          targetPositions={targetPositions}
+          opacityRef={opacityRef}
+        />
+      ))}
+    </group>
+  );
+}
+
+// ======================================================================
 // 3D 场景
 // ======================================================================
 
@@ -564,12 +772,13 @@ function Scene({
     camera.lookAt(0, 0, 0);
   }, [camera]);
 
-  // 满 5 员时用阵法坐标，否则用默认 SLOT_LAYOUT
-  const isFull = cards.every((c) => c !== null);
-  const formation = isFull && evalResult ? FORMATIONS[evalResult.rankType.key] : null;
+  // 只要触发了非散阵的牌型，就应用阵法坐标
+  const formation = evalResult && evalResult.rankType.key !== 'HIGH_CARD' 
+    ? FORMATIONS[evalResult.rankType.key] 
+    : null;
 
-  // 阵法触发特效的签名与倍率
-  const burstKey = isFull && evalResult
+  // 阵法触发特效的签名与倍率（依然保持）
+  const burstKey = evalResult && evalResult.rankType.key !== 'HIGH_CARD'
     ? `${evalResult.rankType.key}|${evalResult.isFlush}`
     : null;
   const burstMultiplier = evalResult
@@ -658,6 +867,13 @@ function Scene({
         ) : null,
       )}
 
+      {/* 阵法节点连线特效（淡入淡出，跟随坐标） */}
+      <FormationLinks
+        formation={formation}
+        targetPositions={positions}
+        burstKey={burstKey}
+      />
+
       {/* 武将徽章（左前角，跟随） */}
       {cards.map((c, i) =>
         c ? (
@@ -666,7 +882,7 @@ function Scene({
             targetX={positions[i].x - TILE_W * 0.4}
             targetZ={positions[i].z + TILE_H * 0.45}
           >
-            <CommanderMark faction={c.faction} name={c.name} />
+            <CommanderMark faction={c.faction} name={c.name} troop={c.troop} />
           </AnimatedGroup>
         ) : null,
       )}

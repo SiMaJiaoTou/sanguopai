@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { useDraggable } from '@dnd-kit/core';
 import type { Card } from '../types';
 import { HorseSealBadge } from './HorseSealBadge';
+import { TroopIcon } from './TroopIcon';
 
 interface Props {
   card: Card;
@@ -324,6 +325,29 @@ export function CardView({
             }}
           />
           <span className="relative">{card.name}</span>
+        </div>
+
+        {/* ============ 右下：兵种玉押（贴圆 SE 弧，层级最高覆盖名字） ============ */}
+        <div
+          className="absolute font-kai font-black flex items-center justify-center"
+          style={{
+            right: `${portraitSize * PERIMETER_INSET}px`,
+            bottom: `${portraitSize * PERIMETER_INSET}px`,
+            transform: 'translate(50%, 50%)',
+            width: `${Math.round(26 * scale)}px`,
+            height: `${Math.round(26 * scale)}px`,
+            color: '#e5e7eb',
+            lineHeight: 1,
+            background: 'linear-gradient(180deg, #374151 0%, #111827 100%)',
+            border: '1.5px solid #6b7280',
+            borderRadius: '50%',
+            textShadow: '0 1px 2px rgba(0,0,0,0.95)',
+            boxShadow:
+              'inset 0 1px 0 rgba(255,255,255,0.2), 0 2px 4px rgba(0,0,0,0.8)',
+            zIndex: 6,
+          }}
+        >
+          <TroopIcon troop={card.troop} size={Math.round(14 * scale)} color="#e5e7eb" />
         </div>
 
         {/* ============ 神马印记（SW 弧；有 horseSeal 时才显示，悬浮弹 tooltip） ============ */}

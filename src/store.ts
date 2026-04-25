@@ -23,6 +23,7 @@ import {
   buildEvalContext,
 } from './talents';
 import { applyRandomHorseSeals } from './horseSeals';
+import { evaluateHand, sortCardsForFormation } from './evaluate';
 
 export type GameMode = 'normal' | 'empowered';
 
@@ -382,6 +383,19 @@ export const useGameStore = create<GameState>((set, get) => ({
     const hand = state.hand.slice();
     const teams = state.teams.map((t) => t.slice());
 
+    // === 新增：计算操作前相关队伍的阵型 ===
+    const ctx = buildEvalContext(state.talents);
+    const oldRanks = new Map<number, string>();
+    const checkTeams = new Set<number>();
+    if (loc.zone === 'team') checkTeams.add(loc.teamIndex);
+    if (toSlot.type === 'team') checkTeams.add(toSlot.teamIndex);
+    
+    for (const tIdx of checkTeams) {
+      const oldValidCards = state.teams[tIdx].filter((c): c is Card => c !== null);
+      const oldRes = evaluateHand(oldValidCards, ctx);
+      oldRanks.set(tIdx, oldRes ? oldRes.rankType.key : 'HIGH_CARD');
+    }
+
     let moving: Card | null = null;
     if (loc.zone === 'hand') moving = hand.splice(loc.index, 1)[0] ?? null;
     else {
@@ -401,6 +415,42 @@ export const useGameStore = create<GameState>((set, get) => ({
         else teams[loc.teamIndex][loc.slotIndex] = existing;
       }
     }
+    
+    // === 变动：如果出战区阵型发生实质性变化（且新阵法非散阵），自动将槽位重新按阵法规则排序 ===
+    if (checkTeams.size > 0) {
+      for (const tIdx of checkTeams) {
+        const teamCards = teams[tIdx];
+        const validCards = teamCards.filter((c): c is Card => c !== null);
+        const res = evaluateHand(validCards, ctx);
+        const newRank = res ? res.rankType.key : 'HIGH_CARD';
+        const oldRank = oldRanks.get(tIdx) ?? 'HIGH_CARD';
+        
+        // 校验队伍内的卡牌是否是原班人马（只发生了换位，没有增减新武将）
+        const oldValidCards = state.teams[tIdx].filter((c): c is Card => c !== null);
+        const isSameCards = 
+          oldValidCards.length === validCards.length &&
+          oldValidCards.every((c) => validCards.some((vc) => vc.id === c.id));
+        
+        // 只有当新阵法不同于旧阵法，并且不是散阵，并且不是原班人马纯换位时，才触发强制排序。
+        // 这意味着在同一阵法内，玩家可以自由调整武将位置而不会被系统强制弹回。
+        if (!isSameCards && newRank !== 'HIGH_CARD' && newRank !== oldRank) {
+          // 对这支队伍的实有卡牌进行自动排序
+          const sortedCards = sortCardsForFormation(validCards, newRank);
+          
+          // 将排好序的卡牌从 0 号槽位依次填入队伍
+          let sIdx = 0;
+          for (let i = 0; i < 5; i++) {
+            if (sIdx < sortedCards.length) {
+              teams[tIdx][i] = sortedCards[sIdx];
+              sIdx++;
+            } else {
+              teams[tIdx][i] = null;
+            }
+          }
+        }
+      }
+    }
+
     set({ hand, teams });
   },
 

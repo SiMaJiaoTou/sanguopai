@@ -2,6 +2,8 @@
 
 export type Faction = '魏' | '蜀' | '吴' | '群';
 
+export type TroopType = '骑' | '弓' | '盾';
+
 export type PointLabel =
   | '3' | '4' | '5' | '6' | '7' | '8' | '9' | '10'
   | 'J' | 'Q' | 'K' | 'A' | '2';
@@ -17,6 +19,7 @@ export type HorseSeal =
 export interface Card {
   id: string;
   faction: Faction;
+  troop: TroopType;
   pointLabel: PointLabel;
   pointValue: number; // 3~10, J=11, Q=12, K=13, A=14, 2=15
   name: string;

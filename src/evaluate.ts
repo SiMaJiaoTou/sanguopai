@@ -11,12 +11,12 @@ export const RANK_TYPES: Record<
   { key: RankTypeKey; name: string; score: number; priority: number }
 > = {
   FIVE_OF_A_KIND:  { key: 'FIVE_OF_A_KIND',  name: '一字阵',   score: 10, priority: 1 },
-  FOUR_OF_A_KIND:  { key: 'FOUR_OF_A_KIND',  name: '雁行阵',   score: 8,  priority: 2 },
-  FULL_HOUSE:      { key: 'FULL_HOUSE',      name: '锥形阵',   score: 6,  priority: 3 },
-  STRAIGHT:        { key: 'STRAIGHT',        name: '长蛇阵',   score: 7,  priority: 4 },
-  THREE_OF_A_KIND: { key: 'THREE_OF_A_KIND', name: '鹤翼阵',   score: 4,  priority: 5 },
-  TWO_PAIR:        { key: 'TWO_PAIR',        name: '方圆阵',   score: 3,  priority: 6 },
-  ONE_PAIR:        { key: 'ONE_PAIR',        name: '锋矢阵',   score: 2,  priority: 7 },
+  FOUR_OF_A_KIND:  { key: 'FOUR_OF_A_KIND',  name: '方圆阵',   score: 8,  priority: 2 },
+  FULL_HOUSE:      { key: 'FULL_HOUSE',      name: '衡轭阵',   score: 6,  priority: 3 },
+  STRAIGHT:        { key: 'STRAIGHT',        name: '雁行阵',   score: 5,  priority: 4 },
+  THREE_OF_A_KIND: { key: 'THREE_OF_A_KIND', name: '锋矢阵',   score: 4,  priority: 5 },
+  TWO_PAIR:        { key: 'TWO_PAIR',        name: '偃月阵',   score: 3,  priority: 6 },
+  ONE_PAIR:        { key: 'ONE_PAIR',        name: '双锋阵',   score: 2,  priority: 7 },
   HIGH_CARD:       { key: 'HIGH_CARD',       name: '散阵',     score: 1,  priority: 8 },
 };
 
@@ -74,6 +74,45 @@ function isFlush(cards: Card[]): boolean {
  * @param cards 已放置的武将（1 ≤ 长度 ≤ 5）
  * @param ctx 天赐被动上下文（可选）
  */
+export function sortCardsForFormation(cards: Card[], rankKey: RankTypeKey): Card[] {
+  // 返回的新数组，按具体的 rankKey 规则排序
+  if (!cards || cards.length === 0) return cards;
+  const sortedDesc = cards.slice().sort((a, b) => b.pointValue - a.pointValue);
+  
+  // 统计点数出现次数
+  const counts = new Map<number, number>();
+  for (const c of cards) counts.set(c.pointValue, (counts.get(c.pointValue) ?? 0) + 1);
+
+  // 辅助函数：按点数频次降序，频次相同时按点数降序
+  const sortByFreqAndVal = (a: Card, b: Card) => {
+    const countA = counts.get(a.pointValue) ?? 0;
+    const countB = counts.get(b.pointValue) ?? 0;
+    if (countA !== countB) return countB - countA;
+    return b.pointValue - a.pointValue;
+  };
+
+  switch (rankKey) {
+    case 'FIVE_OF_A_KIND':
+    case 'FOUR_OF_A_KIND':
+    case 'FULL_HOUSE':
+    case 'THREE_OF_A_KIND':
+    case 'TWO_PAIR':
+    case 'ONE_PAIR':
+      // 阵法特征：主核（同牌）优先占前排（即索引小的位置）
+      // 散牌/副核占后排（即索引大的位置）
+      return cards.slice().sort(sortByFreqAndVal);
+
+    case 'STRAIGHT':
+      // 顺子（雁行阵）：严格按点数降序排列（对应从左后到右前斜排）
+      return sortedDesc;
+
+    case 'HIGH_CARD':
+    default:
+      // 散阵不干预玩家原有排序
+      return cards;
+  }
+}
+
 export function evaluateHand(
   cards: Card[],
   ctx?: EvalContext,
