@@ -18,8 +18,9 @@ import type { GameMode, PowerSnapshot } from '../store';
 import type { GameAction } from './protocol';
 import type { RoomState, PlayerSlot } from './roomTypes';
 import { rollTalents, buildEvalContext } from '../talents';
+import { evaluateHand, sortCardsForFormation } from '../evaluate';
 import type { TalentInstance } from '../talents';
-import { evaluateHand } from '../evaluate';
+
 import { simulateAITurn, runDuels, INITIAL_HP } from '../ai';
 import { applyRandomHorseSeals } from '../horseSeals';
 
@@ -485,13 +486,39 @@ function applyAutoPlace(room: RoomState, idx: number): RoomState {
   const teams = p.teams.map((t) => t.slice());
   const cfg = ROUND_CONFIGS[room.round];
   const teamsNeed = cfg.teamsRequired;
+  let placed = false;
+
   for (let ti = 0; ti < teamsNeed; ti++) {
     for (let si = 0; si < 5; si++) {
       if (teams[ti][si] === null && hand.length > 0) {
         teams[ti][si] = hand.shift()!;
+        placed = true;
       }
     }
   }
+
+  if (placed) {
+    const ctx = buildEvalContext(p.talents);
+    for (let ti = 0; ti < teamsNeed; ti++) {
+      const validCards = teams[ti].filter((c): c is Card => c !== null);
+      const res = evaluateHand(validCards, ctx);
+      const rankKey = res ? res.rankType.key : 'HIGH_CARD';
+      
+      if (rankKey !== 'HIGH_CARD') {
+        const sortedCards = sortCardsForFormation(validCards, rankKey);
+        let sIdx = 0;
+        for (let i = 0; i < 5; i++) {
+          if (sIdx < sortedCards.length) {
+            teams[ti][i] = sortedCards[sIdx];
+            sIdx++;
+          } else {
+            teams[ti][i] = null;
+          }
+        }
+      }
+    }
+  }
+
   return replacePlayer(room, idx, { ...p, hand, teams });
 }
 
