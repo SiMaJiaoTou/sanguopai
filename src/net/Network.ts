@@ -58,9 +58,9 @@ export interface NetworkListener {
 
 const HEARTBEAT_INTERVAL_MS = 10_000;
 const RECONNECT_DELAY_MS = 2_000;
-// 免费云平台冷启动可能 20~30 秒 + 宽限期同样为 30s，给足重试窗口。
-// 每次重试 2s 间隔，15 次 = 30s，刚好对齐 server 端宽限期。
-const MAX_RECONNECT_ATTEMPTS = 15;
+// 免费云平台冷启动可能 20~30 秒 + server 宽限期放宽到 60s，给足重试窗口。
+// 每次重试 2s 间隔，30 次 = 60s，刚好对齐 server 端宽限期。
+const MAX_RECONNECT_ATTEMPTS = 30;
 
 /** sessionStorage 里存的 key */
 const SESSION_TOKEN_KEY = 'sanguo.sessionToken';
